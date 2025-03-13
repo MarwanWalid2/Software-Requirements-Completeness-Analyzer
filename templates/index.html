@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Requirements Analysis & Domain Modeling</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a6fa5;
+            --secondary-color: #166088;
+            --accent-color: #4fc3a1;
+            --warning-color: #f6ae2d;
+            --danger-color: #f26419;
+            --light-bg: #f5f7fa;
+            --dark-text: #2d3748;
+            --success-color: #28a745;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: var(--dark-text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: bold;
+            color: white !important;
+        }
+        
+        /* Update model button */
+        .update-model-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1000;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 12px 25px;
+            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            display: none;
+            transition: all 0.3s ease;
+        }
+        
+        .update-model-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.25);
+            background-color: #3da789;
+        }
+        
+        .update-model-btn:active {
+            transform: translateY(-1px);
+        }
+        
+        /* Main content area styles */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* Input area */
+        .input-area {
+            padding: 20px;
+        }
+        
+        /* Results area with split layout */
+        .results-area {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        /* Domain model section (middle) */
+        .domain-model-section {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 0 15px;
+        }
+        
+        /* Sidebar sections */
+        .sidebar-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 15px;
+        }
+        
+        /* Card styles */
+        .card {
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            border: none;
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            font-weight: bold;
+            padding: 15px 20px;
+        }
+        
+        /* Scrollable card body */
+        .scrollable-body {
+            max-height: calc(100vh - 280px);
+            overflow-y: auto;
+        }
+        
+        /* UML diagram container */
+        .uml-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            overflow: auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        
+        #uml-diagram {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        /* Requirements editor */
+        #requirements-editor {
+            min-height: 150px;
+            border-radius: 4px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: vertical;
+        }
+        
+        /* Analysis button */
+        #analyze-btn {
+            background-color: var(--accent-color);
+            border: none;
+            font-weight: 600;
+            padding: 10px 20px;
+            transition: all 0.3s ease;
+        }
+        
+        #analyze-btn:hover {
+            background-color: #3da789;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        /* Loader */
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--accent-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Sidebar navigation */
+        .sidebar-nav {
+            border-bottom: 1px solid #dee2e6;
+            margin-bottom: 15px;
+        }
+        
+        .sidebar-nav .nav-link {
+            color: var(--dark-text);
+            font-weight: 500;
+            padding: 10px 15px;
+            border-radius: 4px 4px 0 0;
+        }
+        
+        .sidebar-nav .nav-link.active {
+            color: var(--primary-color);
+            font-weight: 600;
+            background-color: white;
+            border-bottom: 3px solid var(--accent-color);
+        }
+        
+        /* Analysis panels */
+        .analysis-panel {
+            display: none;
+        }
+        
+        .analysis-panel.active {
+            display: block;
+        }
+        
+        /* Requirements list */
+        .requirement-item {
+            cursor: pointer;
+            padding: 12px 15px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        
+        .requirement-item:hover {
+            transform: translateX(3px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        }
+        
+        .requirement-item.active {
+            border-left: 4px solid var(--accent-color);
+            background-color: rgba(79, 195, 161, 0.05);
+        }
+        
+        .requirement-item.has-issues {
+            border-left: 4px solid var(--danger-color);
+        }
+        
+        /* Issue cards */
+        .issue-card {
+            border-left: 4px solid;
+            margin-bottom: 15px;
+            transition: all 0.2s ease;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 4px;
+        }
+        
+        .issue-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .issue-card.must-fix, .issue-card.critical {
+            border-left-color: var(--danger-color);
+        }
+        
+        .issue-card.should-fix, .issue-card.high {
+            border-left-color: var(--warning-color);
+        }
+        
+        .issue-card.suggestion, .issue-card.medium {
+            border-left-color: var(--accent-color);
+        }
+        
+        .issue-card.low {
+            border-left-color: var(--secondary-color);
+        }
+        
+        /* Action buttons */
+        .action-buttons {
+            display: flex;
+            margin-top: 10px;
+            gap: 10px;
+        }
+        
+        .btn-accept {
+            background-color: var(--success-color);
+            color: white;
+            border: none;
+        }
+        
+        .btn-decline {
+            background-color: var(--danger-color);
+            color: white;
+            border: none;
+        }
+        
+        .btn-edit {
+            background-color: var(--warning-color);
+            color: var(--dark-text);
+            border: none;
+        }
+        
+        /* Edit form */
+        .edit-form {
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .edit-form textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            margin-bottom: 10px;
+        }
+        
+        /* Severity badges */
+        .badge.bg-danger {
+            background-color: var(--danger-color) !important;
+        }
+        
+        .badge.bg-warning {
+            background-color: var(--warning-color) !important;
+            color: var(--dark-text) !important;
+        }
+        
+        .badge.bg-success {
+            background-color: var(--accent-color) !important;
+        }
+        
+        .badge.bg-info {
+            background-color: var(--secondary-color) !important;
+        }
+        
+        /* Status indicators */
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-pending {
+            background-color: var(--warning-color);
+        }
+        
+        .status-accepted {
+            background-color: var(--success-color);
+        }
+        
+        .status-declined {
+            background-color: var(--danger-color);
+        }
+        
+        /* Make sidebar content scrollable */
+        .sidebar-content {
+            height: calc(100vh - 250px);
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 992px) {
+            .results-area {
+                flex-direction: column;
+            }
+            
+            .domain-model-section, .sidebar-section {
+                flex: none;
+                width: 100%;
+            }
+            
+            .sidebar-content {
+                height: auto;
+                max-height: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-project-diagram me-2"></i>
+                Requirements Analyzer
+            </a>
+        </div>
+    </nav>
+    
+    <!-- Floating Update Model Button -->
+    <button id="update-model-btn" class="update-model-btn">
+        <i class="fas fa-sync-alt me-2"></i>Update Domain Model
+        <span id="changes-count" class="badge bg-light text-dark ms-2">0</span>
+    </button>
+
+    <div class="main-content">
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span>Software Requirements Input</span>
+                                <button id="analyze-btn" class="btn btn-primary">
+                                    <i class="fas fa-brain me-2"></i>Analyze Requirements
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <textarea id="requirements-editor" class="form-control" placeholder="Paste your software requirements here in any format (natural language, use cases, user stories, etc.)..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="loader" class="loader"></div>
+        
+        <!-- Results Area (Three-Column Layout) -->
+        <div id="results-container" class="results-area" style="display: none;">
+            <!-- Left Sidebar -->
+            <div class="sidebar-section">
+                <ul class="nav sidebar-nav" id="sidebar-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="requirement-issues-tab" data-bs-toggle="tab" data-bs-target="#requirement-issues-panel" type="button" role="tab" aria-selected="true">
+                            <i class="fas fa-exclamation-triangle me-2"></i>Requirement Issues
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="missing-requirements-tab" data-bs-toggle="tab" data-bs-target="#missing-requirements-panel" type="button" role="tab" aria-selected="false">
+                            <i class="fas fa-search-plus me-2"></i>Missing Requirements
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="requirement-completeness-tab" data-bs-toggle="tab" data-bs-target="#requirement-completeness-panel" type="button" role="tab" aria-selected="false">
+                            <i class="fas fa-check-circle me-2"></i>Completeness
+                        </button>
+                    </li>
+                </ul>
+                
+                <div class="sidebar-content">
+                    <!-- Requirements Issues Panel -->
+                    <div class="analysis-panel active" id="requirement-issues-panel">
+                        <div id="requirements-list">
+                            <!-- Requirements will be populated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Missing Requirements Panel -->
+                    <div class="analysis-panel" id="missing-requirements-panel">
+                        <div id="missing-requirements-container">
+                            <!-- Missing requirements will be populated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Requirement Completeness Panel -->
+                    <div class="analysis-panel" id="requirement-completeness-panel">
+                        <div id="requirement-completeness-container">
+                            <!-- Requirement completeness analysis will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Middle Section (Domain Model) - Always Visible -->
+            <div class="domain-model-section">
+                <h5 class="mt-3 mb-3">Domain Model</h5>
+                <div class="uml-container">
+                    <img id="uml-diagram" alt="UML Diagram">
+                </div>
+            </div>
+            
+            <!-- Right Sidebar -->
+            <div class="sidebar-section">
+                <ul class="nav sidebar-nav" id="right-sidebar-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="detail-tab" data-bs-toggle="tab" data-bs-target="#detail-panel" type="button" role="tab" aria-selected="true">
+                            <i class="fas fa-info-circle me-2"></i>Details
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="model-issues-tab" data-bs-toggle="tab" data-bs-target="#model-issues-panel" type="button" role="tab" aria-selected="false">
+                            <i class="fas fa-bug me-2"></i>Model Issues
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="model-elements-tab" data-bs-toggle="tab" data-bs-target="#model-elements-panel" type="button" role="tab" aria-selected="false">
+                            <i class="fas fa-cube me-2"></i>Elements
+                        </button>
+                    </li>
+                </ul>
+                
+                <div class="sidebar-content">
+                    <!-- Details Panel -->
+                    <div class="analysis-panel active" id="detail-panel">
+                        <div id="detail-content">
+                            <div class="alert alert-info">
+                                Select an item from the left sidebar to see details
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Model Issues Panel -->
+                    <div class="analysis-panel" id="model-issues-panel">
+                        <div id="model-issues-container">
+                            <!-- Model issues will be populated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Model Elements Panel -->
+                    <div class="analysis-panel" id="model-elements-panel">
+                        <div id="model-elements-list">
+                            <!-- Model elements will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editModalLabel">Edit Requirement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editForm">
+                        <div class="mb-3">
+                            <label for="editText" class="form-label">Requirement Text</label>
+                            <textarea class="form-control" id="editText" rows="5"></textarea>
+                        </div>
+                        <input type="hidden" id="editId" value="">
+                        <input type="hidden" id="editType" value="">
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveEdit">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // DOM Elements
+            const analyzeBtn = document.getElementById('analyze-btn');
+            const requirementsEditor = document.getElementById('requirements-editor');
+            const loader = document.getElementById('loader');
+            const resultsContainer = document.getElementById('results-container');
+            const umlDiagram = document.getElementById('uml-diagram');
+            
+            // Content containers
+            const requirementsList = document.getElementById('requirements-list');
+            const missingRequirementsContainer = document.getElementById('missing-requirements-container');
+            const modelIssuesContainer = document.getElementById('model-issues-container');
+            const requirementCompletenessContainer = document.getElementById('requirement-completeness-container');
+            const modelElementsList = document.getElementById('model-elements-list');
+            const detailContent = document.getElementById('detail-content');
+            
+            // Modal elements
+            const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+            const editForm = document.getElementById('editForm');
+            const editText = document.getElementById('editText');
+            const editId = document.getElementById('editId');
+            const editType = document.getElementById('editType');
+            const saveEditBtn = document.getElementById('saveEdit');
+            
+            // State
+            let currentDomainModel = null;
+            let currentRequirements = null;
+            let currentAnalysis = null;
+            const acceptedChanges = [];
+            const editedRequirements = [];
+            const processedItems = new Set(); // Keep track of processed items
+            
+            // Update model button
+            const updateModelBtn = document.getElementById('update-model-btn');
+            updateModelBtn.addEventListener('click', function() {
+                updateDomainModel();
+            });
+            
+            // Initialize tabs
+            document.querySelectorAll('.sidebar-nav .nav-link').forEach(tabEl => {
+                tabEl.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    const targetTabId = this.getAttribute('data-bs-target');
+                    const parentNav = this.closest('.sidebar-nav');
+                    
+                    // Deactivate all tabs in this sidebar
+                    parentNav.querySelectorAll('.nav-link').forEach(tab => {
+                        tab.classList.remove('active');
+                        tab.setAttribute('aria-selected', 'false');
+                    });
+                    
+                    // Activate clicked tab
+                    this.classList.add('active');
+                    this.setAttribute('aria-selected', 'true');
+                    
+                    // Hide all panels in this sidebar
+                    const sidebarContent = parentNav.nextElementSibling;
+                    sidebarContent.querySelectorAll('.analysis-panel').forEach(panel => {
+                        panel.classList.remove('active');
+                    });
+                    
+                    // Show target panel
+                    document.querySelector(targetTabId).classList.add('active');
+                });
+            });
+            
+            // Handle Analyze button click
+            analyzeBtn.addEventListener('click', async function() {
+                const requirements = requirementsEditor.value.trim();
+                
+                if (!requirements) {
+                    alert('Please enter some requirements before analyzing.');
+                    return;
+                }
+                
+                // Show loader, hide results
+                loader.style.display = 'block';
+                resultsContainer.style.display = 'none';
+                analyzeBtn.disabled = true;
+                analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...';
+                
+                try {
+                    const response = await fetch('/api/analyze', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ requirements })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to analyze requirements');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Store current state
+                    currentDomainModel = data.domain_model;
+                    currentRequirements = requirements;
+                    currentAnalysis = data.analysis;
+                    
+                    // Reset tracked changes
+                    acceptedChanges.length = 0;
+                    editedRequirements.length = 0;
+                    
+                    // Process and display results
+                    displayResults(data);
+                    
+                    // Show results, hide loader
+                    resultsContainer.style.display = 'flex';
+                } catch (error) {
+                    console.error('Error analyzing requirements:', error);
+                    alert('An error occurred while analyzing the requirements. Please try again.');
+                } finally {
+                    loader.style.display = 'none';
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.innerHTML = '<i class="fas fa-brain me-2"></i>Analyze Requirements';
+                }
+            });
+            
+            // Function to display results
+            function displayResults(data) {
+                // Display UML diagram
+                if (data.uml_image) {
+                    umlDiagram.src = 'data:image/png;base64,' + data.uml_image;
+                }
+                
+                // Display domain model elements
+                displayDomainModelElements(data.domain_model);
+                
+                // Display requirement issues
+                displayRequirementIssues(data.analysis);
+                
+                // Display missing requirements
+                displayMissingRequirements(data.analysis);
+                
+                // Display model issues
+                displayModelIssues(data.analysis);
+                
+                // Display requirement completeness
+                displayRequirementCompleteness(data.analysis);
+            }
+            
+            // Function to display domain model elements
+            function displayDomainModelElements(domainModel) {
+                modelElementsList.innerHTML = '';
+                
+                if (!domainModel || !domainModel.classes) {
+                    modelElementsList.innerHTML = '<div class="alert alert-info">No domain model elements found</div>';
+                    return;
+                }
+                
+                // Add class elements
+                const classesHeader = document.createElement('h6');
+                classesHeader.className = 'mt-3 mb-2';
+                classesHeader.innerHTML = '<i class="fas fa-cube me-2"></i>Classes';
+                modelElementsList.appendChild(classesHeader);
+                
+                domainModel.classes.forEach(cls => {
+                    const element = document.createElement('div');
+                    element.className = 'requirement-item';
+                    element.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">${cls.name}</span>
+                        </div>
+                        <p class="mb-0 small text-muted">${cls.description || 'No description'}</p>
+                    `;
+                    
+                    element.addEventListener('click', function() {
+                        // Show class details in the detail panel
+                        showClassDetails(cls);
+                        
+                        // Toggle active state
+                        document.querySelectorAll('#model-elements-list .requirement-item').forEach(el => {
+                            el.classList.remove('active');
+                        });
+                        element.classList.add('active');
+                    });
+                    
+                    modelElementsList.appendChild(element);
+                });
+                
+                // Add relationship elements
+                if (domainModel.relationships && domainModel.relationships.length > 0) {
+                    const relationshipsHeader = document.createElement('h6');
+                    relationshipsHeader.className = 'mt-4 mb-2';
+                    relationshipsHeader.innerHTML = '<i class="fas fa-link me-2"></i>Relationships';
+                    modelElementsList.appendChild(relationshipsHeader);
+                    
+                    domainModel.relationships.forEach(rel => {
+                        const element = document.createElement('div');
+                        element.className = 'requirement-item';
+                        element.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">${rel.source} → ${rel.target}</span>
+                            </div>
+                            <p class="mb-0 small text-muted">Type: ${rel.type}</p>
+                        `;
+                        
+                        element.addEventListener('click', function() {
+                            // Show relationship details in the detail panel
+                            showRelationshipDetails(rel);
+                            
+                            // Toggle active state
+                            document.querySelectorAll('#model-elements-list .requirement-item').forEach(el => {
+                                el.classList.remove('active');
+                            });
+                            element.classList.add('active');
+                        });
+                        
+                        modelElementsList.appendChild(element);
+                    });
+                }
+            }
+            
+            // Function to display requirement issues
+            function displayRequirementIssues(analysis) {
+                requirementsList.innerHTML = '';
+                
+                if (!analysis || !analysis.requirement_issues || analysis.requirement_issues.length === 0) {
+                    requirementsList.innerHTML = '<div class="alert alert-info">No requirement issues found</div>';
+                    return;
+                }
+                
+                analysis.requirement_issues.forEach((req, index) => {
+                    const reqId = req.requirement_id || `R${index + 1}`;
+                    const hasIssues = req.issues && req.issues.length > 0;
+                    
+                    const element = document.createElement('div');
+                    element.className = 'requirement-item' + (hasIssues ? ' has-issues' : '');
+                    
+                    element.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="fw-bold">${reqId}</span>
+                                ${hasIssues ? `<span class="badge bg-danger ms-2">${req.issues.length}</span>` : ''}
+                            </div>
+                            <i class="fas ${hasIssues ? 'fa-exclamation-circle text-danger' : 'fa-check-circle text-success'}"></i>
+                        </div>
+                        <p class="mb-0 text-truncate">${req.requirement_text}</p>
+                    `;
+                    
+                    element.addEventListener('click', function() {
+                        // Show requirement issues in the detail panel
+                        showRequirementIssues(req);
+                        
+                        // Toggle active state
+                        document.querySelectorAll('#requirements-list .requirement-item').forEach(el => {
+                            el.classList.remove('active');
+                        });
+                        element.classList.add('active');
+                    });
+                    
+                    requirementsList.appendChild(element);
+                });
+                
+                // Select the first requirement by default
+                if (analysis.requirement_issues.length > 0) {
+                    const firstRequirement = requirementsList.querySelector('.requirement-item');
+                    if (firstRequirement) {
+                        firstRequirement.classList.add('active');
+                        showRequirementIssues(analysis.requirement_issues[0]);
+                    }
+                }
+            }
+            
+            // Function to show requirement issues in the detail panel
+            function showRequirementIssues(requirement) {
+                detailContent.innerHTML = '';
+                
+                // Display the full requirement text
+                const reqText = document.createElement('div');
+                reqText.className = 'alert alert-secondary';
+                reqText.innerHTML = `<strong>Requirement ${requirement.requirement_id || ''}:</strong> ${requirement.requirement_text}`;
+                detailContent.appendChild(reqText);
+                
+                if (!requirement.issues || requirement.issues.length === 0) {
+                    const noIssues = document.createElement('div');
+                    noIssues.className = 'alert alert-success';
+                    noIssues.innerHTML = `<i class="fas fa-check-circle me-2"></i>No issues found for this requirement.`;
+                    detailContent.appendChild(noIssues);
+                    return;
+                }
+                
+                // Display each issue
+                requirement.issues.forEach(issue => {
+                    let severityClass = '';
+                    let severityBadge = '';
+                    
+                    switch (issue.severity) {
+                        case 'MUST FIX':
+                            severityClass = 'must-fix';
+                            severityBadge = '<span class="badge bg-danger">MUST FIX</span>';
+                            break;
+                        case 'SHOULD FIX':
+                            severityClass = 'should-fix';
+                            severityBadge = '<span class="badge bg-warning">SHOULD FIX</span>';
+                            break;
+                        case 'SUGGESTION':
+                            severityClass = 'suggestion';
+                            severityBadge = '<span class="badge bg-success">SUGGESTION</span>';
+                            break;
+                    }
+                    
+                    const issueCard = document.createElement('div');
+                    issueCard.className = `card issue-card ${severityClass} mb-3`;
+                    
+                    issueCard.innerHTML = `
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="card-title mb-0">${issue.issue_type}</h6>
+                                ${severityBadge}
+                            </div>
+                            <p class="card-text">${issue.description}</p>
+                            <div class="alert alert-light">
+                                <strong>Suggested Fix:</strong> ${issue.suggested_fix}
+                            </div>
+                            ${issue.affected_model_elements && issue.affected_model_elements.length > 0 ? `
+                                <div class="mt-2 mb-3">
+                                    <strong>Affected Model Elements:</strong>
+                                    <ul class="mb-0">
+                                        ${issue.affected_model_elements.map(element => `<li>${element}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="action-buttons">
+                                <button class="btn btn-sm btn-accept" data-req-id="${requirement.requirement_id || ''}" data-issue-type="${issue.issue_type}">
+                                    <i class="fas fa-check me-1"></i> Accept Fix
+                                </button>
+                                <button class="btn btn-sm btn-edit" data-req-id="${requirement.requirement_id || ''}" data-issue-type="${issue.issue_type}">
+                                    <i class="fas fa-edit me-1"></i> Edit & Accept
+                                </button>
+                                <button class="btn btn-sm btn-decline" data-req-id="${requirement.requirement_id || ''}" data-issue-type="${issue.issue_type}">
+                                    <i class="fas fa-times me-1"></i> Decline
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add event listeners for action buttons
+                    issueCard.querySelector('.btn-accept').addEventListener('click', function() {
+                        acceptIssueFixAction(requirement, issue, false);
+                    });
+                    
+                    issueCard.querySelector('.btn-edit').addEventListener('click', function() {
+                        showEditModal(requirement, issue, 'requirement_issue');
+                    });
+                    
+                    issueCard.querySelector('.btn-decline').addEventListener('click', function() {
+                        declineIssueFixAction(requirement, issue);
+                    });
+                    
+                    detailContent.appendChild(issueCard);
+                });
+            }
+            
+            // Function to display missing requirements
+            function displayMissingRequirements(analysis) {
+                missingRequirementsContainer.innerHTML = '';
+                
+                if (!analysis || !analysis.missing_requirements || analysis.missing_requirements.length === 0) {
+                    missingRequirementsContainer.innerHTML = '<div class="alert alert-info">No missing requirements detected</div>';
+                    return;
+                }
+                
+                // Group by severity or category
+                const grouped = {};
+                
+                analysis.missing_requirements.forEach(req => {
+                    const category = req.category || 'Other';
+                    if (!grouped[category]) {
+                        grouped[category] = [];
+                    }
+                    grouped[category].push(req);
+                });
+                
+                // Display each group
+                Object.keys(grouped).forEach(category => {
+                    const categoryHeader = document.createElement('h6');
+                    categoryHeader.className = 'mt-3 mb-2';
+                    categoryHeader.textContent = category;
+                    missingRequirementsContainer.appendChild(categoryHeader);
+                    
+                    // Display each missing requirement
+                    grouped[category].forEach(req => {
+                        let severityClass = '';
+                        
+                        switch (req.severity) {
+                            case 'CRITICAL':
+                                severityClass = 'critical';
+                                break;
+                            case 'HIGH':
+                                severityClass = 'high';
+                                break;
+                            case 'MEDIUM':
+                                severityClass = 'medium';
+                                break;
+                            case 'LOW':
+                                severityClass = 'low';
+                                break;
+                        }
+                        
+                        const reqCard = document.createElement('div');
+                        reqCard.className = `card issue-card ${severityClass} mb-3`;
+                        
+                        reqCard.innerHTML = `
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="card-title mb-0">${req.description}</h6>
+                                    <span class="badge bg-${severityClass === 'critical' ? 'danger' : 
+                                                        severityClass === 'high' ? 'warning' : 
+                                                        severityClass === 'medium' ? 'success' : 'info'}">${req.severity}</span>
+                                </div>
+                                <div class="alert alert-light">
+                                    <strong>Suggested Requirement:</strong> ${req.suggested_requirement}
+                                </div>
+                                <p class="small text-muted mb-2"><strong>Rationale:</strong> ${req.rationale || 'No rationale provided'}</p>
+                                
+                                ${req.affected_model_elements && req.affected_model_elements.length > 0 ? `
+                                    <div class="mt-2 mb-3">
+                                        <strong>Affected Model Elements:</strong>
+                                        <ul class="mb-0">
+                                            ${req.affected_model_elements.map(element => `<li>${element}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                                
+                                <div class="action-buttons">
+                                    <button class="btn btn-sm btn-accept" data-missing-id="${req.id}">
+                                        <i class="fas fa-check me-1"></i> Accept
+                                    </button>
+                                    <button class="btn btn-sm btn-edit" data-missing-id="${req.id}">
+                                        <i class="fas fa-edit me-1"></i> Edit & Accept
+                                    </button>
+                                    <button class="btn btn-sm btn-decline" data-missing-id="${req.id}">
+                                        <i class="fas fa-times me-1"></i> Decline
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Add event listeners for action buttons
+                        reqCard.querySelector('.btn-accept').addEventListener('click', function() {
+                            acceptMissingRequirementAction(req, false);
+                        });
+                        
+                        reqCard.querySelector('.btn-edit').addEventListener('click', function() {
+                            showEditModal(req, null, 'missing_requirement');
+                        });
+                        
+                        reqCard.querySelector('.btn-decline').addEventListener('click', function() {
+                            declineMissingRequirementAction(req);
+                        });
+                        
+                        missingRequirementsContainer.appendChild(reqCard);
+                    });
+                });
+            }
+            
+            // Function to display requirement completeness
+            function displayRequirementCompleteness(analysis) {
+                requirementCompletenessContainer.innerHTML = '';
+                
+                if (!analysis || !analysis.requirement_completeness || analysis.requirement_completeness.length === 0) {
+                    requirementCompletenessContainer.innerHTML = '<div class="alert alert-info">No requirement completeness analysis available</div>';
+                    return;
+                }
+                
+                // Sort by completeness score (ascending)
+                const sortedRequirements = [...analysis.requirement_completeness].sort((a, b) => a.completeness_score - b.completeness_score);
+                
+                sortedRequirements.forEach(req => {
+                    let completenessClass = '';
+                    
+                    if (req.completeness_score < 50) {
+                        completenessClass = 'critical';
+                    } else if (req.completeness_score < 75) {
+                        completenessClass = 'high';
+                    } else if (req.completeness_score < 90) {
+                        completenessClass = 'medium';
+                    } else {
+                        completenessClass = 'low';
+                    }
+                    
+                    const reqCard = document.createElement('div');
+                    reqCard.className = `card issue-card ${completenessClass} mb-3`;
+                    
+                    reqCard.innerHTML = `
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="card-title mb-0">${req.requirement_id || ''}</h6>
+                                <div>
+                                    <span class="badge bg-${completenessClass === 'critical' ? 'danger' : 
+                                                        completenessClass === 'high' ? 'warning' : 
+                                                        completenessClass === 'medium' ? 'success' : 'info'}">${req.completeness_score}%</span>
+                                </div>
+                            </div>
+                            <p class="card-text">${req.requirement_text}</p>
+                            
+                            ${req.missing_elements && req.missing_elements.length > 0 ? `
+                                <div class="mt-2 mb-2">
+                                    <strong>Missing Elements:</strong>
+                                    <ul class="mb-0">
+                                        ${req.missing_elements.map(element => `<li>${element}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="alert alert-light">
+                                <strong>Suggested Improvement:</strong> ${req.suggested_improvement}
+                            </div>
+                            <p class="small text-muted mb-3"><strong>Rationale:</strong> ${req.rationale || 'No rationale provided'}</p>
+                            
+                            <div class="action-buttons">
+                                <button class="btn btn-sm btn-accept" data-completeness-id="${req.requirement_id}">
+                                    <i class="fas fa-check me-1"></i> Accept
+                                </button>
+                                <button class="btn btn-sm btn-edit" data-completeness-id="${req.requirement_id}">
+                                    <i class="fas fa-edit me-1"></i> Edit & Accept
+                                </button>
+                                <button class="btn btn-sm btn-decline" data-completeness-id="${req.requirement_id}">
+                                    <i class="fas fa-times me-1"></i> Decline
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add event listeners for action buttons
+                    reqCard.querySelector('.btn-accept').addEventListener('click', function() {
+                        acceptCompletenessImprovementAction(req, false);
+                    });
+                    
+                    reqCard.querySelector('.btn-edit').addEventListener('click', function() {
+                        showEditModal(req, null, 'requirement_completeness');
+                    });
+                    
+                    reqCard.querySelector('.btn-decline').addEventListener('click', function() {
+                        declineCompletenessImprovementAction(req);
+                    });
+                    
+                    requirementCompletenessContainer.appendChild(reqCard);
+                });
+            }
+            
+            // Function to display model issues
+            function displayModelIssues(analysis) {
+                modelIssuesContainer.innerHTML = '';
+                
+                if (!analysis || !analysis.domain_model_issues || analysis.domain_model_issues.length === 0) {
+                    modelIssuesContainer.innerHTML = '<div class="alert alert-info">No domain model issues detected</div>';
+                    return;
+                }
+                
+                // Group by element type
+                const grouped = {};
+                
+                analysis.domain_model_issues.forEach(issue => {
+                    const type = issue.element_type || 'Other';
+                    if (!grouped[type]) {
+                        grouped[type] = [];
+                    }
+                    grouped[type].push(issue);
+                });
+                
+                // Display each group
+                Object.keys(grouped).forEach(type => {
+                    const typeHeader = document.createElement('h6');
+                    typeHeader.className = 'mt-3 mb-2';
+                    typeHeader.innerHTML = `<i class="fas fa-${type === 'Class' ? 'cube' : 
+                                                        type === 'Relationship' ? 'link' : 
+                                                        type === 'Attribute' ? 'tag' : 
+                                                        type === 'Method' ? 'cog' : 'question'} me-2"></i>${type} Issues`;
+                    modelIssuesContainer.appendChild(typeHeader);
+                    
+                    // Display each issue
+                    grouped[type].forEach(issue => {
+                        let severityClass = '';
+                        let severityBadge = '';
+                        
+                        switch (issue.severity) {
+                            case 'MUST FIX':
+                                severityClass = 'must-fix';
+                                severityBadge = '<span class="badge bg-danger">MUST FIX</span>';
+                                break;
+                            case 'SHOULD FIX':
+                                severityClass = 'should-fix';
+                                severityBadge = '<span class="badge bg-warning">SHOULD FIX</span>';
+                                break;
+                            case 'SUGGESTION':
+                                severityClass = 'suggestion';
+                                severityBadge = '<span class="badge bg-success">SUGGESTION</span>';
+                                break;
+                        }
+                        
+                        const issueCard = document.createElement('div');
+                        issueCard.className = `card issue-card ${severityClass} mb-3`;
+                        
+                        issueCard.innerHTML = `
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="card-title mb-0">${issue.element_name}</h6>
+                                    ${severityBadge}
+                                </div>
+                                <p class="card-text">
+                                    <span class="badge bg-secondary me-2">${issue.issue_type}</span>
+                                    ${issue.description}
+                                </p>
+                                <div class="alert alert-light">
+                                    <strong>Suggested Fix:</strong> ${issue.suggested_fix}
+                                </div>
+                                ${issue.affected_requirements && issue.affected_requirements.length > 0 ? `
+                                    <div class="mt-2 mb-3">
+                                        <strong>Affected Requirements:</strong>
+                                        <ul class="mb-0">
+                                            ${issue.affected_requirements.map(req => `<li>${req}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                ` : ''}
+                                
+                                <div class="action-buttons">
+                                    <button class="btn btn-sm btn-accept" data-model-issue-element="${issue.element_name}" data-model-issue-type="${issue.issue_type}">
+                                        <i class="fas fa-check me-1"></i> Accept Fix
+                                    </button>
+                                    <button class="btn btn-sm btn-edit" data-model-issue-element="${issue.element_name}" data-model-issue-type="${issue.issue_type}">
+                                        <i class="fas fa-edit me-1"></i> Edit & Accept
+                                    </button>
+                                    <button class="btn btn-sm btn-decline" data-model-issue-element="${issue.element_name}" data-model-issue-type="${issue.issue_type}">
+                                        <i class="fas fa-times me-1"></i> Decline
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Add event listeners for action buttons
+                        issueCard.querySelector('.btn-accept').addEventListener('click', function() {
+                            acceptModelIssueFixAction(issue, false);
+                        });
+                        
+                        issueCard.querySelector('.btn-edit').addEventListener('click', function() {
+                            showEditModal(issue, null, 'model_issue');
+                        });
+                        
+                        issueCard.querySelector('.btn-decline').addEventListener('click', function() {
+                            declineModelIssueFixAction(issue);
+                        });
+                        
+                        modelIssuesContainer.appendChild(issueCard);
+                    });
+                });
+            }
+            
+            // Function to show class details
+            function showClassDetails(cls) {
+                detailContent.innerHTML = '';
+                
+                const header = document.createElement('h5');
+                header.className = 'mb-3';
+                header.innerHTML = `<i class="fas fa-cube me-2"></i>${cls.name}`;
+                detailContent.appendChild(header);
+                
+                const description = document.createElement('div');
+                description.className = 'alert alert-secondary mb-3';
+                description.innerHTML = `<strong>Description:</strong> ${cls.description || 'No description provided'}`;
+                detailContent.appendChild(description);
+                
+                // Attributes section
+                if (cls.attributes && cls.attributes.length > 0) {
+                    const attrHeader = document.createElement('h6');
+                    attrHeader.className = 'mt-4 mb-2';
+                    attrHeader.innerHTML = '<i class="fas fa-tag me-2"></i>Attributes';
+                    detailContent.appendChild(attrHeader);
+                    
+                    const attrTable = document.createElement('div');
+                    attrTable.className = 'table-responsive';
+                    attrTable.innerHTML = `
+                        <table class="table table-sm table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${cls.attributes.map(attr => `
+                                    <tr>
+                                        <td>${attr.name}</td>
+                                        <td><code>${attr.type}</code></td>
+                                        <td>${attr.description || ''}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    detailContent.appendChild(attrTable);
+                }
+                
+                // Methods section
+                if (cls.methods && cls.methods.length > 0) {
+                    const methodHeader = document.createElement('h6');
+                    methodHeader.className = 'mt-4 mb-2';
+                    methodHeader.innerHTML = '<i class="fas fa-cog me-2"></i>Methods';
+                    detailContent.appendChild(methodHeader);
+                    
+                    cls.methods.forEach(method => {
+                        const methodCard = document.createElement('div');
+                        methodCard.className = 'card mb-3';
+                        
+                        const params = method.parameters ? method.parameters.map(param => `${param.name}: ${param.type}`).join(', ') : '';
+                        
+                        methodCard.innerHTML = `
+                            <div class="card-body">
+                                <h6 class="card-title">${method.name}(${params}): ${method.returnType || 'void'}</h6>
+                                <p class="card-text small">${method.description || 'No description'}</p>
+                            </div>
+                        `;
+                        
+                        detailContent.appendChild(methodCard);
+                    });
+                }
+            }
+            
+            // Function to show relationship details
+            function showRelationshipDetails(rel) {
+                detailContent.innerHTML = '';
+                
+                const header = document.createElement('h5');
+                header.className = 'mb-3';
+                header.innerHTML = `<i class="fas fa-link me-2"></i>Relationship`;
+                detailContent.appendChild(header);
+                
+                const relationshipCard = document.createElement('div');
+                relationshipCard.className = 'card mb-4';
+                relationshipCard.innerHTML = `
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <h5 class="card-title">${rel.source}</h5>
+                            <h5 class="card-title">${rel.target}</h5>
+                        </div>
+                        <div class="text-center mb-3">
+                            <span class="badge bg-primary p-2">${rel.type}</span>
+                            <i class="fas fa-arrow-right mx-2"></i>
+                        </div>
+                        <div class="d-flex justify-content-between mb-3">
+                            <div>Source Multiplicity: <strong>${rel.sourceMultiplicity || 'N/A'}</strong></div>
+                            <div>Target Multiplicity: <strong>${rel.targetMultiplicity || 'N/A'}</strong></div>
+                        </div>
+                        <p class="card-text">${rel.description || 'No description provided'}</p>
+                    </div>
+                `;
+                
+                detailContent.appendChild(relationshipCard);
+            }
+            
+            // Action functions
+            function acceptIssueFixAction(requirement, issue, edited = false) {
+                console.log(`Accepting fix for ${requirement.requirement_id}: ${issue.issue_type}`);
+                
+                // Generate a unique ID for this issue
+                const itemId = `req-${requirement.requirement_id}-${issue.issue_type}`;
+                
+                // Skip if already processed
+                if (processedItems.has(itemId)) {
+                    return;
+                }
+                
+                // Mark as processed
+                processedItems.add(itemId);
+                
+                // Mark as accepted in UI
+                const issueCards = document.querySelectorAll(`.issue-card`);
+                issueCards.forEach(card => {
+                    const reqIdBtn = card.querySelector(`[data-req-id="${requirement.requirement_id}"][data-issue-type="${issue.issue_type}"]`);
+                    if (reqIdBtn) {
+                        // Hide or fade out the card
+                        card.style.opacity = '0.6';
+                        card.style.pointerEvents = 'none';
+                        
+                        // Add acceptance message
+                        card.innerHTML += `<div class="mt-2 text-success"><i class="fas fa-check-circle me-1"></i> Fix accepted</div>`;
+                        
+                        // Disable all buttons
+                        card.querySelectorAll('button').forEach(btn => {
+                            btn.disabled = true;
+                        });
+                    }
+                });
+                
+                // Add to accepted changes list
+                acceptedChanges.push({
+                    type: 'requirement_issue_fix',
+                    requirement_id: requirement.requirement_id,
+                    issue_type: issue.issue_type,
+                    description: issue.description,
+                    suggested_fix: issue.suggested_fix,
+                    affected_elements: issue.affected_model_elements || [],
+                    edited: edited
+                });
+                
+                // Update changes count and show update button
+                document.getElementById('changes-count').textContent = acceptedChanges.length;
+                updateModelBtn.style.display = 'block';
+            }
+            
+            function declineIssueFixAction(requirement, issue) {
+                console.log(`Declining fix for ${requirement.requirement_id}: ${issue.issue_type}`);
+                
+                // Generate a unique ID for this issue
+                const itemId = `req-${requirement.requirement_id}-${issue.issue_type}`;
+                
+                // Skip if already processed
+                if (processedItems.has(itemId)) {
+                    return;
+                }
+                
+                // Mark as processed
+                processedItems.add(itemId);
+                
+                // Mark as declined in UI
+                const issueCards = document.querySelectorAll(`.issue-card`);
+                issueCards.forEach(card => {
+                    const reqIdBtn = card.querySelector(`[data-req-id="${requirement.requirement_id}"][data-issue-type="${issue.issue_type}"]`);
+                    if (reqIdBtn) {
+                        // Hide or fade out the card
+                        card.style.opacity = '0.6';
+                        card.style.pointerEvents = 'none';
+                        
+                        // Add declined message
+                        card.innerHTML += `<div class="mt-2 text-danger"><i class="fas fa-times-circle me-1"></i> Fix declined</div>`;
+                        
+                        // Disable all buttons
+                        card.querySelectorAll('button').forEach(btn => {
+                            btn.disabled = true;
+                        });
+                    }
+                });
+            }
+            
+            function acceptMissingRequirementAction(missingReq, edited = false) {
+                console.log(`Accepting missing requirement: ${missingReq.id}`);
+                
+                // Generate a unique ID for this requirement
+                const itemId = `missing-${missingReq.id}`;
+                
+                // Skip if already processed
+                if (processedItems.has(itemId)) {
+                    return;
+                }
+                
+                // Mark as processed
+                processedItems.add(itemId);
+                
+                // Mark as accepted in UI
+                const reqCards = document.querySelectorAll(`.issue-card`);
+                reqCards.forEach(card => {
+                    const missingIdBtn = card.querySelector(`[data-missing-id="${missingReq.id}"]`);
+                    if (missingIdBtn) {
+                        // Hide or fade out the card
+                        card.style.opacity = '0.6';
+                        card.style.pointerEvents = 'none';
+                        
+                        // Add acceptance message
+                        card.innerHTML += `<div class="mt-2 text-success"><i class="fas fa-check-circle me-1"></i> Requirement accepted</div>`;
+                        
+                        // Disable all buttons
+                        card.querySelectorAll('button').forEach(btn => {
+                            btn.disabled = true;
+                        });
+                    }
+                });
+                
+                // Add to accepted changes list
+                acceptedChanges.push({
+                    type: 'missing_requirement',
+                    id: missingReq.id,
+                    description: missingReq.description,
+                    suggested_text: missingReq.suggested_requirement,
+                    affected_elements: missingReq.affected_model_elements || [],
+                    edited: edited
+                });
+                
+                // Update changes count and show update button
+                document.getElementById('changes-count').textContent = acceptedChanges.length;
+                updateModelBtn.style.display = 'block';
+            }
+            
+            function declineMissingRequirementAction(missingReq) {
+                console.log(`Declining missing requirement: ${missingReq.id}`);
+                
+                // Generate a unique ID for this requirement
+                const itemId = `missing-${missingReq.id}`;
+                
+                // Skip if already processed
+                if (processedItems.has(itemId)) {
+                    return;
+                }
+                
+                // Mark as processed
+                processedItems.add(itemId);
+                
+                // Mark as declined in UI
+                const reqCards = document.querySelectorAll(`.issue-card`);
+                reqCards.forEach(card => {
+                    const missingIdBtn = card.querySelector(`[data-missing-id="${missingReq.id}"]`);
+                    if (missingIdBtn) {
+                        // Hide or fade out the card
+                        card.style.opacity = '0.6';
+                        card.style.pointerEvents = 'none';
+                        
+                        // Add declined message
+                        card.innerHTML += `<div class="mt-2 text-danger"><i class="fas fa-times-circle me-1"></i> Requirement declined</div>`;
+                        
+                        // Disable all buttons
+                        card.querySelectorAll('button').forEach(btn => {
+                            btn.disabled = true;
+                        });
+                    }
+                });
+            }
+            
+            function acceptCompletenessImprovementAction(req, edited = false) {
+                console.log(`Accepting completeness improvement for: ${req.requirement_id}`);
+                
+                // Generate a unique ID for this requirement
+                const itemId = `completeness-${req.requirement_id}`;
+                
+                // Skip if already processed
+                if (processedItems.has(itemId)) {
+                    return;
+                }
+                
+                // Mark as processed
+                processedItems.add(itemId);
+                
+                // Mark as accepted in UI
+                const reqCards = document.querySelectorAll(`.issue-card`);
+                reqCards.forEach(card => {
+                    const completenessIdBtn = card.querySelector(`[data-completeness-id="${req.requirement_id}"]`);
+                    if (completenessIdBtn) {
+                        // Hide or fade out the card
+                        card.style.opacity = '0.6';
+                        card.style.pointerEvents = 'none';
+                        
+                        // Add acceptance message
+                        card.innerHTML += `<div class="mt-2 text-success"><i class="fas fa-check-circle me-1"></i> Improvement accepted</div>`;
+                        
+                        // Disable all buttons
+                        card.querySelectorAll('button').forEach(btn => {
+                            btn.disabled = true;
+                        });
+                    }
+                });
+                
+                // Add to accepted changes list
+                acceptedChanges.push({
+                    type: 'requirement_improvement',
+                    requirement_id: req.requirement_id,
+                    description: `Improve completeness of requirement ${req.requirement_id}`,
+                    suggested_text: req.suggested_improvement,
+                    missing_elements: req.missing_elements || [],
+                    edited: edited
+                });
+                
+                // Update changes count and show update button
+                document.getElementById('changes-count').textContent = acceptedChanges.length;
+                updateModelBtn.style.display = 'block';
+            }
+            
+            function declineCompletenessImprovementAction(req) {
+                console.log(`Declining completeness improvement for: ${req.requirement_id}`);
+                
+                // Generate a unique ID for this requirement
+                const itemId = `completeness-${req.requirement_id}`;
+                
+                // Skip if already processed
+                if (processedItems.has(itemId)) {
+                    return;
+                }
+                
+                // Mark as processed
+                processedItems.add(itemId);
+                
+                // Mark as declined in UI
+                const reqCards = document.querySelectorAll(`.issue-card`);
+                reqCards.forEach(card => {
+                    const completenessIdBtn = card.querySelector(`[data-completeness-id="${req.requirement_id}"]`);
+                    if (completenessIdBtn) {
+                        // Hide or fade out the card
+                        card.style.opacity = '0.6';
+                        card.style.pointerEvents = 'none';
+                        
+                        // Add declined message
+                        card.innerHTML += `<div class="mt-2 text-danger"><i class="fas fa-times-circle me-1"></i> Improvement declined</div>`;
+                        
+                        // Disable all buttons
+                        card.querySelectorAll('button').forEach(btn => {
+                            btn.disabled = true;
+                        });
+                    }
+                });
+            }
+            
+            function acceptModelIssueFixAction(issue, edited = false) {
+                console.log(`Accepting model issue fix for: ${issue.element_name} - ${issue.issue_type}`);
+                
+                // Generate a unique ID for this issue
+                const itemId = `model-${issue.element_name}-${issue.issue_type}`;
+                
+                // Skip if already processed
+                if (processedItems.has(itemId)) {
+                    return;
+                }
+                
+                // Mark as processed
+                processedItems.add(itemId);
+                
+                // Mark as accepted in UI
+                const issueCards = document.querySelectorAll(`.issue-card`);
+                issueCards.forEach(card => {
+                    const modelIssueBtn = card.querySelector(`[data-model-issue-element="${issue.element_name}"][data-model-issue-type="${issue.issue_type}"]`);
+                    if (modelIssueBtn) {
+                        // Hide or fade out the card
+                        card.style.opacity = '0.6';
+                        card.style.pointerEvents = 'none';
+                        
+                        // Add acceptance message
+                        card.innerHTML += `<div class="mt-2 text-success"><i class="fas fa-check-circle me-1"></i> Fix accepted</div>`;
+                        
+                        // Disable all buttons
+                        card.querySelectorAll('button').forEach(btn => {
+                            btn.disabled = true;
+                        });
+                    }
+                });
+                
+                // Add to accepted changes list
+                acceptedChanges.push({
+                    type: 'model_issue_fix',
+                    element_type: issue.element_type,
+                    element_name: issue.element_name,
+                    issue_type: issue.issue_type,
+                    description: issue.description,
+                    suggested_fix: issue.suggested_fix,
+                    affected_requirements: issue.affected_requirements || [],
+                    edited: edited
+                });
+                
+                // Update changes count and show update button
+                document.getElementById('changes-count').textContent = acceptedChanges.length;
+                updateModelBtn.style.display = 'block';
+            }
+            
+            function declineModelIssueFixAction(issue) {
+                console.log(`Declining model issue fix for: ${issue.element_name} - ${issue.issue_type}`);
+                
+                // Generate a unique ID for this issue
+                const itemId = `model-${issue.element_name}-${issue.issue_type}`;
+                
+                // Skip if already processed
+                if (processedItems.has(itemId)) {
+                    return;
+                }
+                
+                // Mark as processed
+                processedItems.add(itemId);
+                
+                // Mark as declined in UI
+                const issueCards = document.querySelectorAll(`.issue-card`);
+                issueCards.forEach(card => {
+                    const modelIssueBtn = card.querySelector(`[data-model-issue-element="${issue.element_name}"][data-model-issue-type="${issue.issue_type}"]`);
+                    if (modelIssueBtn) {
+                        // Hide or fade out the card
+                        card.style.opacity = '0.6';
+                        card.style.pointerEvents = 'none';
+                        
+                        // Add declined message
+                        card.innerHTML += `<div class="mt-2 text-danger"><i class="fas fa-times-circle me-1"></i> Fix declined</div>`;
+                        
+                        // Disable all buttons
+                        card.querySelectorAll('button').forEach(btn => {
+                            btn.disabled = true;
+                        });
+                    }
+                });
+            }
+            
+            // Function to show edit modal
+            function showEditModal(item, issue, type) {
+                editId.value = '';
+                editType.value = type;
+                
+                // Set the text based on the item type
+                switch (type) {
+                    case 'requirement_issue':
+                        editId.value = item.requirement_id || '';
+                        editText.value = issue.suggested_fix || '';
+                        document.getElementById('editModalLabel').textContent = `Edit Fix for ${item.requirement_id}`;
+                        break;
+                    case 'missing_requirement':
+                        editId.value = item.id || '';
+                        editText.value = item.suggested_requirement || '';
+                        document.getElementById('editModalLabel').textContent = 'Edit Missing Requirement';
+                        break;
+                    case 'requirement_completeness':
+                        editId.value = item.requirement_id || '';
+                        editText.value = item.suggested_improvement || '';
+                        document.getElementById('editModalLabel').textContent = `Edit Requirement Improvement`;
+                        break;
+                    case 'model_issue':
+                        editId.value = item.element_name || '';
+                        editText.value = item.suggested_fix || '';
+                        document.getElementById('editModalLabel').textContent = `Edit Model Fix for ${item.element_name}`;
+                        break;
+                }
+                
+                // Show the modal
+                editModal.show();
+            }
+            
+            // Save edit handler
+            saveEditBtn.addEventListener('click', function() {
+                const id = editId.value;
+                const type = editType.value;
+                const text = editText.value;
+                
+                if (!text.trim()) {
+                    alert('Please enter text.');
+                    return;
+                }
+                
+                // Process the edit based on type
+                switch (type) {
+                    case 'requirement_issue':
+                        // Find the requirement and issue
+                        const req = currentAnalysis.requirement_issues.find(r => r.requirement_id === id);
+                        if (req) {
+                            const issue = req.issues[0]; // Simplified - we should find the exact issue
+                            issue.suggested_fix = text;
+                            acceptIssueFixAction(req, issue, true);
+                        }
+                        break;
+                    case 'missing_requirement':
+                        const missingReq = currentAnalysis.missing_requirements.find(r => r.id === id);
+                        if (missingReq) {
+                            missingReq.suggested_requirement = text;
+                            acceptMissingRequirementAction(missingReq, true);
+                        }
+                        break;
+                    case 'requirement_completeness':
+                        const completenessReq = currentAnalysis.requirement_completeness.find(r => r.requirement_id === id);
+                        if (completenessReq) {
+                            completenessReq.suggested_improvement = text;
+                            acceptCompletenessImprovementAction(completenessReq, true);
+                        }
+                        break;
+                    case 'model_issue':
+                        const modelIssue = currentAnalysis.domain_model_issues.find(i => i.element_name === id);
+                        if (modelIssue) {
+                            modelIssue.suggested_fix = text;
+                            acceptModelIssueFixAction(modelIssue, true);
+                        }
+                        break;
+                }
+                
+                // Close the modal
+                editModal.hide();
+            });
+            
+            // Function to check if we should update the model (now deprecated - using direct update button)
+            function checkForModelUpdate() {
+                // This function is now deprecated as we're using a direct update button
+                // but we'll keep it for compatibility
+                document.getElementById('changes-count').textContent = acceptedChanges.length;
+                updateModelBtn.style.display = 'block';
+            }
+            
+            // Function to update the domain model with accepted changes
+            async function updateDomainModel() {
+                if (acceptedChanges.length === 0) {
+                    alert('No changes to apply.');
+                    return;
+                }
+                
+                // Show loader
+                loader.style.display = 'block';
+                
+                try {
+                    const response = await fetch('/api/update', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            accepted_changes: acceptedChanges,
+                            edited_requirements: editedRequirements
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to update model');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        alert('Domain model updated successfully!');
+                        
+                        // Update current state
+                        currentDomainModel = data.domain_model;
+                        currentRequirements = data.requirements;
+                        currentAnalysis = data.analysis;
+                        
+                        // Reset tracking arrays
+                        acceptedChanges.length = 0;
+                        editedRequirements.length = 0;
+                        processedItems.clear();
+                        
+                        // Hide update button
+                        document.getElementById('changes-count').textContent = '0';
+                        updateModelBtn.style.display = 'none';
+                        
+                        // Update display
+                        displayResults(data);
+                    } else {
+                        alert('Error updating model: ' + data.error);
+                    }
+                } catch (error) {
+                    console.error('Error updating model:', error);
+                    alert('An error occurred while updating the model. Please try again.');
+                } finally {
+                    loader.style.display = 'none';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

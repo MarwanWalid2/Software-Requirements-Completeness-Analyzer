@@ -1,0 +1,127 @@
+/* Layout fixes for better screen space utilization */
+
+/* Make main content have better scrolling behavior */
+.main-content {
+    height: 100vh;
+    overflow-y: auto;
+}
+
+/* Add more room for the results area */
+.results-area {
+    min-height: 600px;
+    height: auto;
+    padding-bottom: 40px;
+}
+
+/* Improve domain model section sizing */
+.domain-model-section {
+    min-height: 600px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Make UML container larger and properly scrollable */
+.uml-container {
+    flex: 1;
+    min-height: 500px;
+    height: auto;
+    overflow: auto;
+}
+
+#uml-diagram {
+    max-width: 100%;
+    height: auto;
+    min-height: 400px;
+}
+
+/* Better sizing for sidebar sections */
+.sidebar-section {
+    min-height: 600px;
+    height: auto;
+}
+
+/* Make sidebar content scrollable with more vertical space */
+.sidebar-content {
+    height: calc(100vh - 200px);
+    min-height: 500px;
+    overflow-y: auto;
+    padding-bottom: 20px;
+}
+
+/* Ensure the sidebars don't shrink too much */
+@media (min-width: 992px) {
+    .sidebar-section {
+        flex: 1 0 350px;
+    }
+    
+    .domain-model-section {
+        flex: 2 0 500px;
+    }
+}
+
+/* Ensure the page scrolls properly */
+body {
+    overflow-y: auto !important;
+    height: auto;
+    min-height: 100vh;
+}
+
+/* Ensure fixed elements don't cause layout issues */
+.update-model-btn {
+    z-index: 9000;
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+}
+
+/* Adjust tabs navigation to use less vertical space */
+.sidebar-nav {
+    margin-bottom: 10px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+/* Fix for Firefox scrolling issues */
+@-moz-document url-prefix() {
+    .sidebar-content {
+        scrollbar-width: thin;
+    }
+}
+
+/* Improved scrollbar styling for WebKit browsers */
+.sidebar-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.sidebar-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+}
+
+.sidebar-content::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+/* Better mobile experience */
+@media (max-width: 991px) {
+    .results-area {
+        flex-direction: column;
+    }
+    
+    .sidebar-section,
+    .domain-model-section {
+        width: 100%;
+        min-height: 400px;
+        margin-bottom: 20px;
+    }
+    
+    .sidebar-content {
+        height: 400px;
+        min-height: 300px;
+    }
+}

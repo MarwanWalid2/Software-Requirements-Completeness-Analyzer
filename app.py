@@ -9,7 +9,7 @@ import tempfile
 from flask import Flask, render_template, request, jsonify, session
 from flask_session import Session
 
-from config import configure_app
+from config import configure_app, get_available_models, get_available_meta_models
 from models.domain_model_analyzer import DomainModelAnalyzer
 
 # Configure logging
@@ -17,7 +17,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(r"log\app.log"),
+        logging.FileHandler(os.path.join("log", "app.log")),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -33,13 +33,47 @@ analyzer = DomainModelAnalyzer()
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    """Render the main page with LLM model selection options"""
+    # Get available models and meta-models
+    available_models = get_available_models()
+    available_meta_models = get_available_meta_models()
+    
+    # Store in session for future use
+    session['available_models'] = available_models
+    session['available_meta_models'] = available_meta_models
+    
+    return render_template(
+        'index.html', 
+        available_models=available_models,
+        available_meta_models=available_meta_models
+    )
+
+@app.route('/api/available-models', methods=['GET'])
+def get_models():
+    """Return the available models and meta-models"""
+    available_models = get_available_models()
+    available_meta_models = get_available_meta_models()
+    
+    return jsonify({
+        "models": available_models,
+        "meta_models": available_meta_models
+    })
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_requirements():
     try:
         logger.info("Received analyze request")
-        requirements = request.json.get('requirements', '')
+        data = request.json
+        requirements = data.get('requirements', '')
+        
+        # Get selected models from request or use default
+        selected_models = data.get('selected_models', ['deepseek'])
+        meta_model_id = data.get('meta_model_id', 'majority')
+        model_weights = data.get('model_weights', {}) 
+
+        
+        logger.info(f"Selected models: {selected_models}")
+        logger.info(f"Meta model: {meta_model_id}")
         
         if not requirements:
             logger.warning("No requirements provided in request")
@@ -47,10 +81,15 @@ def analyze_requirements():
         
         logger.info(f"Processing requirements ({len(requirements)} characters)")
         
-        # Generate the domain model
+        # Generate the domain model with selected models
         logger.info("Generating domain model...")
         try:
-            domain_model_result = analyzer.create_domain_model(requirements)
+            domain_model_result = analyzer.create_domain_model(
+                requirements, 
+                selected_models=selected_models,
+                meta_model_id=meta_model_id,
+                model_weights=model_weights
+            )
         except Exception as e:
             logger.error(f"Error generating domain model: {str(e)}")
             logger.error(traceback.format_exc())
@@ -87,7 +126,13 @@ def analyze_requirements():
         # Analyze completeness (includes both original functionality and enhanced analysis)
         logger.info("Analyzing requirements completeness...")
         try:
-            analysis_result = analyzer.analyze_requirements_completeness(requirements, domain_model)
+            analysis_result = analyzer.analyze_requirements_completeness(
+                requirements, 
+                domain_model,
+                selected_models=selected_models,
+                meta_model_id=meta_model_id,
+                model_weights=model_weights
+            )
         except Exception as e:
             logger.error(f"Error analyzing requirements: {str(e)}")
             logger.error(traceback.format_exc())
@@ -108,6 +153,9 @@ def analyze_requirements():
             session['domain_model'] = domain_model
             session['analysis'] = analysis_result.get("analysis", {})
             session['requirements'] = requirements
+            session['selected_models'] = selected_models
+            session['meta_model_id'] = meta_model_id
+            session['model_weights'] = model_weights
         except Exception as e:
             logger.warning(f"Could not store results in session: {str(e)}")
         
@@ -120,8 +168,13 @@ def analyze_requirements():
                 "domain_model": domain_model_result.get("reasoning", ""),
                 "analysis": analysis_result.get("reasoning", "")
             },
+            "aggregation_info": {
+                "domain_model": domain_model_result.get("aggregation_info", {}),
+                "analysis": analysis_result.get("aggregation_info", {})
+            },
             "debug_info": {
-                "api_key_present": bool(analyzer.client.api_key),
+                "selected_models": selected_models,
+                "meta_model_id": meta_model_id,
                 "requirements_length": len(requirements),
                 "domain_model_present": bool(domain_model),
                 "uml_image_present": bool(uml_image),
@@ -161,6 +214,15 @@ def update_model_and_requirements():
         accepted_changes = data.get('accepted_changes', [])
         edited_requirements = data.get('edited_requirements', [])
         
+        # Get selected models from session or request
+        selected_models = data.get('selected_models') or session.get('selected_models', ['deepseek'])
+        meta_model_id = data.get('meta_model_id') or session.get('meta_model_id', 'majority')
+        model_weights = data.get('model_weights') or session.get('model_weights', {})
+
+        
+        logger.info(f"Selected models for update: {selected_models}")
+        logger.info(f"Meta model for update: {meta_model_id}")
+        
         if not accepted_changes and not edited_requirements:
             logger.warning("No changes provided in update request")
             return jsonify({"error": "No changes provided"}), 400
@@ -176,7 +238,13 @@ def update_model_and_requirements():
         # Update domain model based on accepted changes
         if accepted_changes:
             logger.info(f"Updating domain model with {len(accepted_changes)} accepted changes")
-            updated_domain_model = analyzer.update_domain_model(domain_model, accepted_changes)
+            updated_domain_model = analyzer.update_domain_model(
+                domain_model, 
+                accepted_changes,
+                selected_models=selected_models,
+                meta_model_id=meta_model_id,
+                model_weights=model_weights
+            )
         else:
             updated_domain_model = domain_model
             

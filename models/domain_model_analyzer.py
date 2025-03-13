@@ -2,23 +2,45 @@ import json
 import logging
 import time
 import traceback
+import concurrent.futures
+from typing import List, Dict, Any
 
-from services.deepseek_client import initialize_deepseek_client
+from services.llm_adapters import get_adapter
+from services.results_aggregator import ResultsAggregator
 from services.plantuml_service import generate_plantuml_image
 from utils.json_utils import extract_json_from_response, validate_domain_model, create_default_analysis
 
 logger = logging.getLogger(__name__)
 
 class DomainModelAnalyzer:
+    """Analyzes requirements and generates domain models using multiple LLM backends"""
+    
     def __init__(self):
-        self.client = initialize_deepseek_client()
-        self.model_name = "deepseek-chat"
+        """Initialize the analyzer"""
+        # We no longer initialize specific clients here
+        # Instead, we'll use the adapters as needed
         self.max_retries = 1
         self.retry_delay = 5  # seconds
     
-    def create_domain_model(self, requirements):
-        """Generate a domain model from requirements using deepseek-reasoner"""
-        logger.info("Creating domain model")
+    def create_domain_model(self, requirements, selected_models=None, meta_model_id=None, model_weights=None):
+        """
+        Generate a domain model from requirements using one or more LLMs
+        
+        Args:
+            requirements (str): The requirements text
+            selected_models (list): List of model IDs to use
+            meta_model_id (str): ID of the meta model to use for aggregation
+            model_weights (dict): Custom weights for each model when using weighted voting
+        
+        Returns:
+            dict: Domain model and reasoning
+        """
+        logger.info(f"Creating domain model using {len(selected_models) if selected_models else 0} models")
+        
+        if not selected_models:
+            # Use Deepseek as fallback for backward compatibility
+            logger.warning("No models specified, falling back to DeepSeek")
+            selected_models = ["deepseek"]
         
         # Simplify the prompt to reduce response size
         prompt = """
@@ -58,21 +80,49 @@ class DomainModelAnalyzer:
         """
         
         messages = [{"role": "user", "content": prompt + requirements}]
-        logger.debug(f"Sending request to DeepSeek API with {len(messages[0]['content'])} characters")
         
-        # Try with the OpenAI SDK, with retries
+        # If only one model selected, use it directly
+        if len(selected_models) == 1:
+            model_id = selected_models[0]
+            return self._create_domain_model_with_model(model_id, messages)
+        
+        # Use multiple models and aggregate results
+        model_results = self._run_models_in_parallel(
+            selected_models, 
+            "create_domain_model", 
+            messages
+        )
+        
+        # Aggregate results
+        aggregator = ResultsAggregator(meta_model_id or "majority", model_weights)
+        return aggregator.aggregate_domain_models(model_results)
+    
+    def _create_domain_model_with_model(self, model_id, messages,model_weights=None):
+        """
+        Generate a domain model using a specific LLM
+        
+        Args:
+            model_id (str): ID of the model to use
+            messages (list): Messages to send to the LLM
+        
+        Returns:
+            dict: Domain model and reasoning
+        """
+        logger.info(f"Creating domain model with {model_id}")
+        
+        # Get the adapter for this model
+        adapter = get_adapter(model_id)
+        
+        # Try with retries
         for attempt in range(self.max_retries):
             try:
-                logger.info(f"Calling DeepSeek API (attempt {attempt+1}/{self.max_retries})")
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=messages,
-                )
+                logger.info(f"Calling {model_id} API (attempt {attempt+1}/{self.max_retries})")
                 
-                logger.info("Received response from DeepSeek API")
+                # Generate response
+                response = adapter.generate_response(messages)
                 
                 # Extract and validate the response content
-                domain_model_json = response.choices[0].message.content
+                domain_model_json = response["content"]
                 if not domain_model_json:
                     raise ValueError("Empty response content")
                 
@@ -92,9 +142,10 @@ class DomainModelAnalyzer:
                     logger.info(f"Model contains {len(domain_model.get('classes', []))} classes and {len(domain_model.get('relationships', []))} relationships")
                     
                     # OpenAI's model doesn't provide reasoning_content like DeepSeek
-                    reasoning_content = "Reasoning information not available with this model"
+                    reasoning_content = f"Domain model generated by {model_id}"
                     
                     return {
+                        "model_id": model_id,
                         "domain_model": domain_model,
                         "reasoning": reasoning_content
                     }
@@ -102,7 +153,7 @@ class DomainModelAnalyzer:
                     logger.warning(f"Error processing domain model: {str(e)}")
                     
                     # Save the raw response for debugging
-                    with open(f"log\raw_domain_model_response_{attempt}.txt", "w") as f:
+                    with open(f"log/raw_domain_model_response_{model_id}_{attempt}.txt", "w") as f:
                         f.write(domain_model_json)
                     
                     # If not the last attempt, try again
@@ -112,7 +163,7 @@ class DomainModelAnalyzer:
                         continue
                     
             except Exception as e:
-                logger.error(f"API request error (attempt {attempt+1}): {str(e)}")
+                logger.error(f"{model_id} API request error (attempt {attempt+1}): {str(e)}")
                 logger.error(traceback.format_exc())
                 
                 # If not the last attempt, retry
@@ -122,20 +173,37 @@ class DomainModelAnalyzer:
                     continue
         
         # If all attempts failed, return a default domain model
-        logger.error("All API attempts failed. Returning default domain model")
+        logger.error(f"All {model_id} API attempts failed. Returning default domain model")
         return {
+            "model_id": model_id,
             "domain_model": {
                 "classes": [],
                 "relationships": [],
                 "plantuml": "@startuml\n@enduml"
             },
-            "error": "All API attempts failed",
+            "error": f"All {model_id} API attempts failed",
             "reasoning": "Error occurred during model generation"
         }
     
-    def detect_missing_requirements(self, requirements, domain_model):
-        """Specialized function to detect missing requirements based on domain model and natural language"""
-        logger.info("Detecting missing requirements")
+    def detect_missing_requirements(self, requirements, domain_model, selected_models=None, meta_model_id=None, model_weights=None):
+        """
+        Specialized function to detect missing requirements based on domain model and natural language
+        
+        Args:
+            requirements (str): The requirements text
+            domain_model (dict): The domain model
+            selected_models (list): List of model IDs to use
+            meta_model_id (str): ID of the meta model to use for aggregation
+        
+        Returns:
+            dict: Missing requirements analysis
+        """
+        logger.info(f"Detecting missing requirements using {len(selected_models) if selected_models else 0} models")
+        
+        if not selected_models:
+            # Use Deepseek as fallback for backward compatibility
+            logger.warning("No models specified, falling back to DeepSeek")
+            selected_models = ["deepseek"]
         
         # Create a default response in case all API calls fail
         default_response = {
@@ -185,26 +253,71 @@ class DomainModelAnalyzer:
         
         logger.debug(f"Missing requirements detection prompt length: {len(full_prompt)}")
         
+        # If only one model selected, use it directly
+        if len(selected_models) == 1:
+            model_id = selected_models[0]
+            return self._detect_missing_requirements_with_model(model_id, messages, default_response)
+        
+        # Use multiple models and aggregate results
+        model_results = self._run_models_in_parallel(
+            selected_models, 
+            "detect_missing_requirements", 
+            messages, 
+            default_response
+        )
+        
+        # Aggregate results - use the missing_requirements field only
+        aggregated_results = []
+        for result in model_results:
+            if result and "missing_requirements" in result:
+                result_copy = result.copy()
+                result_copy["analysis"] = {"missing_requirements": result["missing_requirements"]}
+                aggregated_results.append(result_copy)
+        
+        # Aggregate results
+        aggregator = ResultsAggregator(meta_model_id or "majority", model_weights)
+        aggregated = aggregator.aggregate_analysis_results(aggregated_results)
+        
+        # Extract just the missing_requirements
+        if "analysis" in aggregated and "missing_requirements" in aggregated["analysis"]:
+            return {"missing_requirements": aggregated["analysis"]["missing_requirements"]}
+        
+        return default_response
+    
+    def _detect_missing_requirements_with_model(self, model_id, messages, default_response, model_weights=None):
+        """
+        Detect missing requirements using a specific LLM
+        
+        Args:
+            model_id (str): ID of the model to use
+            messages (list): Messages to send to the LLM
+            default_response (dict): Default response in case of failure
+        
+        Returns:
+            dict: Missing requirements analysis
+        """
+        logger.info(f"Detecting missing requirements with {model_id}")
+        
+        # Get the adapter for this model
+        adapter = get_adapter(model_id)
+        
         # Call the API with retries
         for attempt in range(self.max_retries):
             try:
-                logger.info(f"Sending missing requirements detection request (attempt {attempt+1}/{self.max_retries})")
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=messages,
-                )
+                logger.info(f"Sending missing requirements detection request to {model_id} (attempt {attempt+1}/{self.max_retries})")
                 
-                logger.info("Received missing requirements response")
+                # Generate response
+                response = adapter.generate_response(messages)
                 
                 # Extract content
-                result_json = response.choices[0].message.content
+                result_json = response["content"]
                 if not result_json:
                     raise ValueError("Empty response content")
                 
                 logger.debug(f"Missing requirements content sample: {result_json[:200]}...")
                 
                 # Save raw response for debugging
-                with open(f"log\raw_missing_requirements_{attempt}.txt", "w") as f:
+                with open(f"log/raw_missing_requirements_{model_id}_{attempt}.txt", "w") as f:
                     f.write(result_json)
                 
                 # Parse and validate the JSON
@@ -220,6 +333,9 @@ class DomainModelAnalyzer:
                     
                     logger.info(f"Found {len(result.get('missing_requirements', []))} missing requirements")
                     
+                    # Add model ID
+                    result["model_id"] = model_id
+                    
                     return result
                     
                 except Exception as e:
@@ -232,7 +348,7 @@ class DomainModelAnalyzer:
                         continue
                 
             except Exception as e:
-                logger.error(f"Missing requirements API request error (attempt {attempt+1}): {str(e)}")
+                logger.error(f"Missing requirements API request error to {model_id} (attempt {attempt+1}): {str(e)}")
                 logger.error(traceback.format_exc())
                 
                 # If not the last attempt, retry
@@ -242,12 +358,29 @@ class DomainModelAnalyzer:
                     continue
         
         # If we've exhausted all retries, return a default response
-        logger.error("All missing requirements detection attempts failed, returning default")
+        logger.error(f"All missing requirements detection attempts with {model_id} failed, returning default")
+        default_response["model_id"] = model_id
         return default_response
     
-    def analyze_requirement_completeness(self, requirements, domain_model):
-        """Specialized function to analyze individual requirement completeness"""
-        logger.info("Analyzing individual requirement completeness")
+    def analyze_requirement_completeness(self, requirements, domain_model, selected_models=None, meta_model_id=None, model_weights=None):
+        """
+        Specialized function to analyze individual requirement completeness
+        
+        Args:
+            requirements (str): The requirements text
+            domain_model (dict): The domain model
+            selected_models (list): List of model IDs to use
+            meta_model_id (str): ID of the meta model to use for aggregation
+        
+        Returns:
+            dict: Requirement completeness analysis
+        """
+        logger.info(f"Analyzing individual requirement completeness using {len(selected_models) if selected_models else 0} models")
+        
+        if not selected_models:
+            # Use Deepseek as fallback for backward compatibility
+            logger.warning("No models specified, falling back to DeepSeek")
+            selected_models = ["deepseek"]
         
         # Create a default response in case all API calls fail
         default_response = {
@@ -293,26 +426,71 @@ class DomainModelAnalyzer:
         
         logger.debug(f"Requirement completeness analysis prompt length: {len(full_prompt)}")
         
+        # If only one model selected, use it directly
+        if len(selected_models) == 1:
+            model_id = selected_models[0]
+            return self._analyze_requirement_completeness_with_model(model_id, messages, default_response)
+        
+        # Use multiple models and aggregate results
+        model_results = self._run_models_in_parallel(
+            selected_models, 
+            "analyze_requirement_completeness", 
+            messages, 
+            default_response
+        )
+        
+        # Aggregate results - use the requirement_completeness field only
+        aggregated_results = []
+        for result in model_results:
+            if result and "requirement_completeness" in result:
+                result_copy = result.copy()
+                result_copy["analysis"] = {"requirement_completeness": result["requirement_completeness"]}
+                aggregated_results.append(result_copy)
+        
+        # Aggregate results
+        aggregator = ResultsAggregator(meta_model_id or "majority", model_weights)
+        aggregated = aggregator.aggregate_analysis_results(aggregated_results)
+        
+        # Extract just the requirement_completeness
+        if "analysis" in aggregated and "requirement_completeness" in aggregated["analysis"]:
+            return {"requirement_completeness": aggregated["analysis"]["requirement_completeness"]}
+        
+        return default_response
+    
+    def _analyze_requirement_completeness_with_model(self, model_id, messages, default_response, model_weights=None):
+        """
+        Analyze requirement completeness using a specific LLM
+        
+        Args:
+            model_id (str): ID of the model to use
+            messages (list): Messages to send to the LLM
+            default_response (dict): Default response in case of failure
+        
+        Returns:
+            dict: Requirement completeness analysis
+        """
+        logger.info(f"Analyzing requirement completeness with {model_id}")
+        
+        # Get the adapter for this model
+        adapter = get_adapter(model_id)
+        
         # Call the API with retries
         for attempt in range(self.max_retries):
             try:
-                logger.info(f"Sending requirement completeness analysis request (attempt {attempt+1}/{self.max_retries})")
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=messages,
-                )
+                logger.info(f"Sending requirement completeness analysis request to {model_id} (attempt {attempt+1}/{self.max_retries})")
                 
-                logger.info("Received requirement completeness response")
+                # Generate response
+                response = adapter.generate_response(messages)
                 
                 # Extract content
-                result_json = response.choices[0].message.content
+                result_json = response["content"]
                 if not result_json:
                     raise ValueError("Empty response content")
                 
                 logger.debug(f"Requirement completeness content sample: {result_json[:200]}...")
                 
                 # Save raw response for debugging
-                with open(f"log\raw_requirement_completeness_{attempt}.txt", "w") as f:
+                with open(f"log/raw_requirement_completeness_{model_id}_{attempt}.txt", "w") as f:
                     f.write(result_json)
                 
                 # Parse and validate the JSON
@@ -328,6 +506,9 @@ class DomainModelAnalyzer:
                     
                     logger.info(f"Analyzed completeness of {len(result.get('requirement_completeness', []))} requirements")
                     
+                    # Add model ID
+                    result["model_id"] = model_id
+                    
                     return result
                     
                 except Exception as e:
@@ -340,7 +521,7 @@ class DomainModelAnalyzer:
                         continue
                 
             except Exception as e:
-                logger.error(f"Requirement completeness API request error (attempt {attempt+1}): {str(e)}")
+                logger.error(f"Requirement completeness API request error to {model_id} (attempt {attempt+1}): {str(e)}")
                 logger.error(traceback.format_exc())
                 
                 # If not the last attempt, retry
@@ -350,21 +531,35 @@ class DomainModelAnalyzer:
                     continue
         
         # If we've exhausted all retries, return a default response
-        logger.error("All requirement completeness analysis attempts failed, returning default")
+        logger.error(f"All requirement completeness analysis attempts with {model_id} failed, returning default")
+        default_response["model_id"] = model_id
         return default_response
     
-    def analyze_requirements_completeness(self, requirements, domain_model):
-        """Analyze requirements for completeness against the domain model (original function, kept for compatibility)"""
-        logger.info("Analyzing requirements completeness")
+    def analyze_requirements_completeness(self, requirements, domain_model, selected_models=None, meta_model_id=None, model_weights=None):
+        """
+        Analyze requirements for completeness against the domain model
         
-        # Create a default analysis result in case all API calls fail
-        default_analysis = create_default_analysis()
+        Args:
+            requirements (str): The requirements text
+            domain_model (dict): The domain model
+            selected_models (list): List of model IDs to use
+            meta_model_id (str): ID of the meta model to use for aggregation
+        
+        Returns:
+            dict: Analysis results and reasoning
+        """
+        logger.info(f"Analyzing requirements completeness using {len(selected_models) if selected_models else 0} models")
+        
+        if not selected_models:
+            # Use Deepseek as fallback for backward compatibility
+            logger.warning("No models specified, falling back to DeepSeek")
+            selected_models = ["deepseek"]
         
         # Get more detailed missing requirements using the specialized function
-        missing_requirements_result = self.detect_missing_requirements(requirements, domain_model)
+        missing_requirements_result = self.detect_missing_requirements(requirements, domain_model, selected_models, meta_model_id, model_weights)
         
         # Get individual requirement completeness analysis
-        requirement_completeness_result = self.analyze_requirement_completeness(requirements, domain_model)
+        requirement_completeness_result = self.analyze_requirement_completeness(requirements, domain_model, selected_models, meta_model_id, model_weights)
         
         # Simplified prompt to reduce response size
         prompt = """
@@ -412,7 +607,7 @@ class DomainModelAnalyzer:
         except Exception as e:
             logger.error(f"Error serializing domain model: {str(e)}")
             return {
-                "analysis": default_analysis, 
+                "analysis": create_default_analysis(), 
                 "error": f"Error serializing domain model: {str(e)}",
                 "missing_requirements": missing_requirements_result.get("missing_requirements", []),
                 "requirement_completeness": requirement_completeness_result.get("requirement_completeness", [])
@@ -423,19 +618,65 @@ class DomainModelAnalyzer:
         
         logger.debug(f"Analysis prompt length: {len(full_prompt)}")
         
-        # Try with the OpenAI SDK, with retries
+        # If only one model selected, use it directly
+        if len(selected_models) == 1:
+            model_id = selected_models[0]
+            main_analysis = self._analyze_requirements_with_model(
+                model_id, 
+                messages, 
+                missing_requirements_result, 
+                requirement_completeness_result
+            )
+            return main_analysis
+        
+        # Use multiple models and aggregate results
+        model_results = self._run_models_in_parallel(
+            selected_models, 
+            "analyze_requirements", 
+            messages
+        )
+        
+        # Add missing requirements and completeness to each result
+        for result in model_results:
+            if "analysis" in result:
+                result["analysis"]["missing_requirements"] = missing_requirements_result.get("missing_requirements", [])
+                result["analysis"]["requirement_completeness"] = requirement_completeness_result.get("requirement_completeness", [])
+        
+        # Aggregate results
+        aggregator = ResultsAggregator(meta_model_id or "majority", model_weights)
+        return aggregator.aggregate_analysis_results(model_results)
+    
+    def _analyze_requirements_with_model(self, model_id, messages, missing_requirements_result, requirement_completeness_result, model_weights=None):
+        """
+        Analyze requirements using a specific LLM
+        
+        Args:
+            model_id (str): ID of the model to use
+            messages (list): Messages to send to the LLM
+            missing_requirements_result (dict): Results from missing requirements analysis
+            requirement_completeness_result (dict): Results from requirement completeness analysis
+        
+        Returns:
+            dict: Analysis results and reasoning
+        """
+        logger.info(f"Analyzing requirements with {model_id}")
+        
+        # Create a default analysis result in case all API calls fail
+        default_analysis = create_default_analysis()
+        
+        # Get the adapter for this model
+        adapter = get_adapter(model_id)
+        
+        # Try with the API, with retries
         for attempt in range(self.max_retries):
             try:
-                logger.info(f"Sending requirements analysis request (attempt {attempt+1}/{self.max_retries})")
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=messages,
-                )
+                logger.info(f"Sending requirements analysis request to {model_id} (attempt {attempt+1}/{self.max_retries})")
                 
-                logger.info("Received analysis response from DeepSeek API")
+                # Generate response
+                response = adapter.generate_response(messages)
                 
                 # Extract content
-                analysis_json = response.choices[0].message.content
+                analysis_json = response["content"]
                 if not analysis_json:
                     raise ValueError("Empty response content")
                 
@@ -443,7 +684,7 @@ class DomainModelAnalyzer:
                 logger.debug(f"Analysis content sample: {analysis_json[:200]}...")
                 
                 # Save raw analysis response for debugging
-                with open(f"log\raw_analysis_response_{attempt}.txt", "w") as f:
+                with open(f"log/raw_analysis_response_{model_id}_{attempt}.txt", "w") as f:
                     f.write(analysis_json)
                 
                 # Attempt to parse and validate the JSON
@@ -471,15 +712,10 @@ class DomainModelAnalyzer:
                     logger.info(f"Found {len(analysis.get('domain_model_issues', []))} domain model issues")
                     logger.info(f"Found {len(analysis.get('requirement_completeness', []))} requirement completeness entries")
                     
-                    # Try to extract reasoning content if available
-                    try:
-                        reasoning_content = response.choices[0].message.reasoning_content
-                    except:
-                        reasoning_content = "Reasoning information not available"
-                    
                     return {
+                        "model_id": model_id,
                         "analysis": analysis,
-                        "reasoning": reasoning_content
+                        "reasoning": f"Analysis generated by {model_id}"
                     }
                 except Exception as e:
                     logger.warning(f"Error processing analysis: {str(e)}")
@@ -491,7 +727,7 @@ class DomainModelAnalyzer:
                         continue
                 
             except Exception as e:
-                logger.error(f"Analysis API request error (attempt {attempt+1}): {str(e)}")
+                logger.error(f"Analysis API request error to {model_id} (attempt {attempt+1}): {str(e)}")
                 logger.error(traceback.format_exc())
                 
                 # If not the last attempt, retry
@@ -501,19 +737,36 @@ class DomainModelAnalyzer:
                     continue
         
         # If we've exhausted all retries, return a default analysis with our specialized data included
-        logger.error("All analysis attempts failed, returning default analysis with specialized data")
+        logger.error(f"All analysis attempts with {model_id} failed, returning default analysis with specialized data")
         default_analysis["missing_requirements"] = missing_requirements_result.get("missing_requirements", [])
         default_analysis["requirement_completeness"] = requirement_completeness_result.get("requirement_completeness", [])
         
         return {
+            "model_id": model_id,
             "analysis": default_analysis,
-            "error": "Failed to get analysis from API after multiple attempts",
+            "error": f"Failed to get analysis from {model_id} API after multiple attempts",
             "reasoning": "Analysis could not be completed due to API errors"
         }
     
-    def update_domain_model(self, domain_model, accepted_changes):
-        """Update the domain model based on accepted changes"""
-        logger.info(f"Updating domain model with {len(accepted_changes)} accepted changes")
+    def update_domain_model(self, domain_model, accepted_changes, selected_models=None, meta_model_id=None, model_weights=None):
+        """
+        Update the domain model based on accepted changes
+        
+        Args:
+            domain_model (dict): The domain model to update
+            accepted_changes (list): List of accepted changes
+            selected_models (list): List of model IDs to use
+            meta_model_id (str): ID of the meta model to use for aggregation
+        
+        Returns:
+            dict: Updated domain model
+        """
+        logger.info(f"Updating domain model with {len(accepted_changes)} accepted changes using {len(selected_models) if selected_models else 0} models")
+        
+        if not selected_models:
+            # Use Deepseek as fallback for backward compatibility
+            logger.warning("No models specified, falling back to DeepSeek")
+            selected_models = ["deepseek"]
         
         if not accepted_changes:
             return domain_model
@@ -543,19 +796,52 @@ class DomainModelAnalyzer:
         
         logger.debug(f"Domain model update prompt length: {len(full_prompt)}")
         
+        # If only one model selected, use it directly
+        if len(selected_models) == 1:
+            model_id = selected_models[0]
+            return self._update_domain_model_with_model(model_id, messages, domain_model)
+        
+        # Use multiple models and aggregate results
+        model_results = self._run_models_in_parallel(
+            selected_models, 
+            "update_domain_model", 
+            messages, 
+            {"domain_model": domain_model}
+        )
+        
+        # Aggregate results
+        aggregator = ResultsAggregator(meta_model_id or "majority", model_weights)
+        aggregated = aggregator.aggregate_domain_models(model_results)
+        
+        return aggregated.get("domain_model", domain_model)
+    
+    def _update_domain_model_with_model(self, model_id, messages, domain_model, model_weights=None):
+        """
+        Update the domain model using a specific LLM
+        
+        Args:
+            model_id (str): ID of the model to use
+            messages (list): Messages to send to the LLM
+            domain_model (dict): The original domain model
+        
+        Returns:
+            dict: Updated domain model
+        """
+        logger.info(f"Updating domain model with {model_id}")
+        
+        # Get the adapter for this model
+        adapter = get_adapter(model_id)
+        
         # Call the API with retries
         for attempt in range(self.max_retries):
             try:
-                logger.info(f"Sending domain model update request (attempt {attempt+1}/{self.max_retries})")
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=messages,
-                )
+                logger.info(f"Sending domain model update request to {model_id} (attempt {attempt+1}/{self.max_retries})")
                 
-                logger.info("Received domain model update response")
+                # Generate response
+                response = adapter.generate_response(messages)
                 
                 # Extract content
-                result_json = response.choices[0].message.content
+                result_json = response["content"]
                 if not result_json:
                     raise ValueError("Empty response content")
                 
@@ -584,7 +870,7 @@ class DomainModelAnalyzer:
                         return domain_model
                 
             except Exception as e:
-                logger.error(f"Domain model update API request error (attempt {attempt+1}): {str(e)}")
+                logger.error(f"Domain model update API request error to {model_id} (attempt {attempt+1}): {str(e)}")
                 logger.error(traceback.format_exc())
                 
                 # If not the last attempt, retry
@@ -602,3 +888,65 @@ class DomainModelAnalyzer:
     def generate_plantUML_image(self, plantuml_code):
         """Generate a PNG image from PlantUML code"""
         return generate_plantuml_image(plantuml_code)
+    
+    def _run_models_in_parallel(self, model_ids, operation_type, messages, default_result=None):
+        """
+        Run multiple models in parallel and collect their results
+        
+        Args:
+            model_ids (list): List of model IDs to use
+            operation_type (str): Type of operation to perform
+            messages (list): Messages to send to LLMs
+            default_result (dict): Default result to use in case of failure
+        
+        Returns:
+            list: Results from all models
+        """
+        logger.info(f"Running {operation_type} with {len(model_ids)} models in parallel")
+        
+        results = []
+        
+        # Define the worker function based on operation type
+        def worker(model_id):
+            try:
+                if operation_type == "create_domain_model":
+                    return self._create_domain_model_with_model(model_id, messages)
+                elif operation_type == "detect_missing_requirements":
+                    return self._detect_missing_requirements_with_model(model_id, messages, default_result or {"missing_requirements": []})
+                elif operation_type == "analyze_requirement_completeness":
+                    return self._analyze_requirement_completeness_with_model(model_id, messages, default_result or {"requirement_completeness": []})
+                elif operation_type == "analyze_requirements":
+                    # For this operation, we don't have the missing_requirements_result and requirement_completeness_result
+                    # So we'll just create default ones
+                    missing_req = {"missing_requirements": []}
+                    req_completeness = {"requirement_completeness": []}
+                    return self._analyze_requirements_with_model(model_id, messages, missing_req, req_completeness)
+                elif operation_type == "update_domain_model":
+                    return {"model_id": model_id, "domain_model": self._update_domain_model_with_model(model_id, messages, default_result.get("domain_model", {}))}
+                else:
+                    logger.error(f"Unknown operation type: {operation_type}")
+                    return {"error": f"Unknown operation type: {operation_type}"}
+            except Exception as e:
+                logger.error(f"Error in {operation_type} worker for {model_id}: {str(e)}")
+                logger.error(traceback.format_exc())
+                return {"model_id": model_id, "error": str(e)}
+        
+        # Use ThreadPoolExecutor to run models in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(model_ids)) as executor:
+            # Submit all tasks
+            future_to_model = {executor.submit(worker, model_id): model_id for model_id in model_ids}
+            
+            # Collect results as they complete
+            for future in concurrent.futures.as_completed(future_to_model):
+                model_id = future_to_model[future]
+                try:
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                    else:
+                        logger.warning(f"Null result from {model_id}")
+                except Exception as e:
+                    logger.error(f"Exception in thread for {model_id}: {str(e)}")
+                    logger.error(traceback.format_exc())
+        
+        return results

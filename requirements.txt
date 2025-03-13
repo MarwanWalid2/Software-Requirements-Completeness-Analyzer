@@ -4,3 +4,4 @@ plantuml
 openai
 python-dotenv
 requests
+anthropic

@@ -111,7 +111,6 @@ class OpenAIAdapter(LLMAdapterBase):
         # This should not be reached due to the raise in the loop, but just in case
         raise RuntimeError("Failed to generate response from OpenAI API")
 
-
 class ClaudeAdapter(LLMAdapterBase):
     """Adapter for Claude/Anthropic LLM"""
     
@@ -119,10 +118,12 @@ class ClaudeAdapter(LLMAdapterBase):
         """Generate a response from Claude LLM"""
         logger.info(f"Generating response from Claude model: {self.model_name}")
         
+        # Set max tokens based on the model
+        max_tokens = 128000
+        
         for attempt in range(self.max_retries):
             try:
-                logger.info(f"Claude request attempt {attempt+1}/{self.max_retries}")
-                
+            
                 # Convert OpenAI message format to Anthropic format
                 system_message = None
                 user_messages = []
@@ -133,19 +134,27 @@ class ClaudeAdapter(LLMAdapterBase):
                     else:
                         user_messages.append(msg)
                 
+                # Create the request parameters
+                request_params = {
+                    "model": self.model_name,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                     "extra_headers": {
+                        "anthropic-beta": "output-128k-2025-02-19"
+                    }
+                }
+                
+                # Add system message only if it exists
+                if system_message:
+                    request_params["system"] = system_message
+                
                 # If there's only one user message, use it directly
                 if len(user_messages) == 1 and user_messages[0]["role"] == "user":
-                    prompt = user_messages[0]["content"]
+                    request_params["messages"] = [
+                        {"role": "user", "content": user_messages[0]["content"]}
+                    ]
                     
-                    response = self.client.messages.create(
-                        model=self.model_name,
-                        # max_tokens=4000,
-                        # temperature=temperature,
-                        system=system_message,
-                        messages=[
-                            {"role": "user", "content": prompt}
-                        ]
-                    )
+                    response = self.client.messages.create(**request_params)
                 else:
                     # Convert the conversation history to Anthropic's format
                     anthropic_messages = []
@@ -155,13 +164,8 @@ class ClaudeAdapter(LLMAdapterBase):
                             "content": msg["content"]
                         })
                     
-                    response = self.client.messages.create(
-                        model=self.model_name,
-                        # max_tokens=4000,
-                        # temperature=temperature,
-                        system=system_message,
-                        messages=anthropic_messages
-                    )
+                    request_params["messages"] = anthropic_messages
+                    response = self.client.messages.create(**request_params)
                 
                 result = {
                     "model_id": self.model_id,

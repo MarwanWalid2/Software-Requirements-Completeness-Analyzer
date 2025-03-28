@@ -11,6 +11,7 @@ from flask_session import Session
 
 from config import configure_app, get_available_models, get_available_meta_models
 from models.domain_model_analyzer import DomainModelAnalyzer
+from werkzeug.utils import secure_filename
 
 # Configure logging
 logging.basicConfig(
@@ -334,7 +335,7 @@ def update_model_and_requirements():
         # Prepare response
         response = {
             "domain_model": updated_domain_model,
-            "requirements": updated_requirements,
+            "requirements": updated_requirements,  # Return the updated requirements
             "analysis": analysis_result.get("analysis", {}),
             "uml_image": uml_image,
             "success": True,
@@ -352,5 +353,188 @@ def update_model_and_requirements():
             "success": False
         }), 500
 
+@app.route('/api/upload-srs', methods=['POST'])
+def upload_srs_file():
+    """API endpoint to upload and process SRS documents"""
+    try:
+        logger.info("Received SRS file upload request")
+        
+        # Check if a file was uploaded
+        if 'file' not in request.files:
+            logger.warning("No file part in request")
+            logger.debug(f"Request files: {request.files}")
+            logger.debug(f"Request form: {request.form}")
+            return jsonify({"error": "No file part"}), 400
+        
+        file = request.files['file']
+        
+        # Check if the file was actually selected
+        if file.filename == '':
+            logger.warning("No file selected")
+            return jsonify({"error": "No file selected"}), 400
+        
+        logger.info(f"Processing file: {file.filename}, size: {file.content_length or 'unknown'}, type: {file.content_type}")
+        
+        # Always extract requirements
+        extract_requirements = True
+        logger.info(f"Always extracting requirements from document")
+        
+        # Get selected models from the request
+        selected_models = request.form.getlist('selected_models[]')
+        if not selected_models:
+            selected_models = ['claude']  # Default
+        logger.info(f"Selected models for extraction: {selected_models}")
+        
+        # Get meta model
+        meta_model_id = request.form.get('meta_model_id', 'majority')
+        logger.info(f"Meta model for extraction: {meta_model_id}")
+        
+        # Save the file to a temporary location
+        temp_filepath = os.path.join(tempfile.gettempdir(), secure_filename(file.filename))
+        file.save(temp_filepath)
+        logger.info(f"File saved to {temp_filepath}")
+        
+        # Process the file based on its extension
+        file_extension = os.path.splitext(file.filename)[1].lower()
+        logger.info(f"File extension: {file_extension}")
+        content = ""
+        
+        if file_extension in ['.txt', '.md']:
+            # Plain text files
+            logger.info("Processing as text file")
+            with open(temp_filepath, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+            logger.info(f"Read text file ({len(content)} characters)")
+        
+        elif file_extension in ['.docx']:
+            # Word documents using docx library
+            logger.info("Processing as DOCX file")
+            try:
+                import docx
+                doc = docx.Document(temp_filepath)
+                paragraphs = [p.text for p in doc.paragraphs]
+                content = '\n'.join(paragraphs)
+                logger.info(f"Processed DOCX file ({len(content)} characters)")
+            except ImportError:
+                # If docx is not installed, return error
+                logger.error("python-docx library not installed")
+                return jsonify({"error": "Cannot process DOCX files. The python-docx library is not installed."}), 500
+        
+        elif file_extension in ['.doc']:
+            # For .doc files, you'd need something like textract or antiword
+            logger.error("DOC file processing not implemented")
+            return jsonify({"error": "DOC files are not supported yet. Please convert to DOCX or TXT."}), 400
+        
+        elif file_extension in ['.pdf']:
+            # PDF files using pypdf
+            logger.info("Processing as PDF file")
+            try:
+                import pypdf
+                logger.info("Opening PDF file with pypdf")
+                pdf_reader = pypdf.PdfReader(temp_filepath)
+                logger.info(f"PDF has {len(pdf_reader.pages)} pages")
+                
+                content = ""
+                for i, page in enumerate(pdf_reader.pages):
+                    logger.info(f"Extracting text from page {i+1}/{len(pdf_reader.pages)}")
+                    page_text = page.extract_text()
+                    logger.info(f"Extracted {len(page_text)} characters from page {i+1}")
+                    content += page_text + "\n"
+                
+                if not content.strip():
+                    logger.warning("PDF extraction returned empty content")
+                    # If we got empty content, the PDF might be image-based
+                    # We could add OCR here in a future enhancement
+                    return jsonify({
+                        "error": "The PDF appears to be image-based or doesn't contain extractable text. Please convert it to a text-based format or manually copy the requirements."
+                    }), 400
+                
+                logger.info(f"Successfully processed PDF with total {len(content)} characters")
+            except ImportError:
+                logger.error("pypdf library not installed")
+                return jsonify({
+                    "error": "Cannot process PDF files. The pypdf library is not installed."
+                }), 500
+            except Exception as e:
+                logger.error(f"Error processing PDF: {str(e)}")
+                logger.error(traceback.format_exc())
+                return jsonify({
+                    "error": f"Error processing PDF: {str(e)}"
+                }), 500
+        
+        else:
+            logger.warning(f"Unsupported file format: {file_extension}")
+            return jsonify({"error": f"Unsupported file format: {file_extension}"}), 400
+        
+        # Clean up the temporary file
+        try:
+            os.remove(temp_filepath)
+            logger.info(f"Removed temporary file: {temp_filepath}")
+        except Exception as e:
+            logger.warning(f"Could not remove temporary file: {str(e)}")
+        
+        # Store the original content in the session
+        session['uploaded_srs_content'] = content
+        logger.info("Stored original content in session")
+        
+        # If extraction is requested, extract requirements using LLMs
+        if extract_requirements:
+            logger.info("Extracting requirements using LLMs")
+            
+            # Extract requirements using the domain model analyzer
+            try:
+                extraction_result = analyzer.extract_requirements_from_srs(
+                    content,
+                    selected_models=selected_models,
+                    meta_model_id=meta_model_id
+                )
+                
+                extracted_requirements = extraction_result.get("extracted_requirements", "")
+                requirements_count = extraction_result.get("requirements_count", 0)
+                
+                logger.info(f"Successfully extracted {requirements_count} requirements")
+                
+                # Store in session for future use
+                session['requirements'] = extracted_requirements
+                
+                return jsonify({
+                    "success": True,
+                    "original_content": content,
+                    "extracted_requirements": extracted_requirements,
+                    "requirements_count": requirements_count,
+                    "message": f"Successfully extracted {requirements_count} requirements from the document."
+                })
+                
+            except Exception as e:
+                logger.error(f"Error extracting requirements: {str(e)}")
+                logger.error(traceback.format_exc())
+                # Fall back to returning the raw content
+                return jsonify({
+                    "success": False,
+                    "original_content": content,
+                    "content": content,
+                    "error": f"Could not extract requirements: {str(e)}",
+                    "message": "Failed to extract requirements. Returning the original document content."
+                })
+        
+        # If no extraction requested, just return the content
+        logger.info("No extraction requested, returning original content")
+        session['requirements'] = content
+        
+        return jsonify({
+            "success": True,
+            "original_content": content,
+            "content": content,
+            "message": "File uploaded successfully."
+        })
+        
+    except Exception as e:
+        logger.critical(f"Unhandled exception in upload endpoint: {str(e)}")
+        logger.critical(traceback.format_exc())
+        return jsonify({
+            "error": f"An unexpected error occurred: {str(e)}",
+            "traceback": traceback.format_exc()
+        }), 500
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

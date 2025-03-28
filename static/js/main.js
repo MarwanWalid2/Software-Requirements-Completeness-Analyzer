@@ -35,127 +35,176 @@ class RequirementsAnalyzer {
         this.setupDemoContent();
     }
     
-    /**
-     * Handle Analyze button click
-     */
-    async handleAnalyze() {
-        const requirements = this.requirementsEditor.value.trim();
-        
-        if (!requirements) {
-            this.showNotification('Please enter some requirements before analyzing.', 'warning');
-            return;
-        }
-        
-        // Get selected models
-        const selectedModels = this.modelSelector.getSelectedModels();
-        if (selectedModels.length === 0) {
-            this.showNotification('Please select at least one LLM model.', 'warning');
-            return;
-        }
-        
-        // Get selected meta-model and weights
-        const metaModel = this.modelSelector.getCurrentMetaModel();
-        const modelWeights = this.modelSelector.getModelWeights();
-        
-        // Show loader, hide results
-        this.setLoading(true);
-        
-        try {
-            const response = await fetch('/api/analyze', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ 
-                    requirements,
-                    selected_models: selectedModels,
-                    meta_model_id: metaModel,
-                    model_weights: modelWeights
-                })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to analyze requirements');
-            }
-            
-            const data = await response.json();
-            
-            // Display results
-            this.resultsDisplay.displayResults(data);
-        } catch (error) {
-            console.error('Error analyzing requirements:', error);
-            this.showNotification(`Error: ${error.message}`, 'danger');
-        } finally {
-            this.setLoading(false);
-        }
+/**
+ * Handle Analyze button click
+ */
+async handleAnalyze() {
+    console.log("Analyze button clicked");
+    
+    // Check for file upload handler
+    if (!window.fileUploadHandler) {
+        console.error("File upload handler not available!");
+    } else {
+        console.log("File upload handler found");
+        console.log("Has file selected:", window.fileUploadHandler.hasFileSelected());
     }
     
-    /**
-     * Handle Update Model button click
-     */
-    async handleUpdateModel() {
-        const acceptedChanges = this.resultsDisplay.getAcceptedChanges();
-        const editedRequirements = this.resultsDisplay.getEditedRequirements();
+    // Set loading at the beginning
+    this.setLoading(true);
+    
+    // Check if there's a file to process first
+    let requirements = "";
+    let fileProcessed = false;
+    
+    try {
+        if (window.fileUploadHandler && window.fileUploadHandler.hasFileSelected()) {
+            console.log("File selected, processing it...");
+            
+            // Process the file first
+            requirements = await window.fileUploadHandler.processFileIfNeeded();
+            console.log("File processing complete, got requirements:", requirements ? "yes" : "no");
+            fileProcessed = true;
+            
+            // If processing succeeded but returned nothing, use the editor content
+            if (!requirements) {
+                console.log("No requirements from file processing, using editor content");
+                requirements = this.requirementsEditor.value.trim();
+            }
+        } else {
+            // No file, just use the editor content
+            console.log("No file selected, using editor content");
+            requirements = this.requirementsEditor.value.trim();
+        }
         
-        if (acceptedChanges.length === 0 && editedRequirements.length === 0) {
-            this.showNotification('No changes to apply.', 'warning');
+        // Check for empty requirements (only if no file was processed)
+        if (!fileProcessed && !requirements) {
+            console.log("No requirements provided and no file processed");
+            this.showNotification('Please enter some requirements or upload an SRS document.', 'warning');
+            this.setLoading(false);
             return;
         }
         
         // Get selected models
         const selectedModels = this.modelSelector.getSelectedModels();
         if (selectedModels.length === 0) {
-            selectedModels.push('deepseek'); // Fallback
+            console.log("No models selected");
+            this.showNotification('Please select at least one LLM model.', 'warning');
+            this.setLoading(false);
+            return;
         }
+        
+        console.log("Selected models:", selectedModels);
         
         // Get selected meta-model and weights
         const metaModel = this.modelSelector.getCurrentMetaModel();
         const modelWeights = this.modelSelector.getModelWeights();
         
-        // Show loader
-        this.setLoading(true);
+        console.log("Sending analysis request with requirements length:", requirements.length);
         
-        try {
-            const response = await fetch('/api/update', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    accepted_changes: acceptedChanges,
-                    edited_requirements: editedRequirements,
-                    selected_models: selectedModels,
-                    meta_model_id: metaModel,
-                    model_weights: modelWeights
-                })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to update model');
-            }
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showNotification('Domain model updated successfully!', 'success');
-                
-                // Reset changes tracking
-                this.resultsDisplay.reset();
-                
-                // Update display with new results
-                this.resultsDisplay.displayResults(data);
-            } else {
-                this.showNotification(`Error: ${data.error || 'Failed to update model'}`, 'danger');
-            }
-        } catch (error) {
-            console.error('Error updating model:', error);
-            this.showNotification(`Error: ${error.message}`, 'danger');
-        } finally {
-            this.setLoading(false);
+        // Send the analysis request
+        const response = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                requirements,
+                selected_models: selectedModels,
+                meta_model_id: metaModel,
+                model_weights: modelWeights
+            })
+        });
+        
+        console.log("Analysis response received:", response.status);
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to analyze requirements');
         }
+        
+        const data = await response.json();
+        console.log("Analysis completed successfully");
+        
+        // Display results
+        this.resultsDisplay.displayResults(data);
+    } catch (error) {
+        console.error('Error in analysis process:', error);
+        this.showNotification(`Error: ${error.message}`, 'danger');
+    } finally {
+        this.setLoading(false);
     }
+}
+    
+   /**
+ * Handle Update Model button click
+ */
+async handleUpdateModel() {
+    const acceptedChanges = this.resultsDisplay.getAcceptedChanges();
+    const editedRequirements = this.resultsDisplay.getEditedRequirements();
+    
+    if (acceptedChanges.length === 0 && editedRequirements.length === 0) {
+        this.showNotification('No changes to apply.', 'warning');
+        return;
+    }
+    
+    // Get selected models
+    const selectedModels = this.modelSelector.getSelectedModels();
+    if (selectedModels.length === 0) {
+        selectedModels.push('deepseek'); // Fallback
+    }
+    
+    // Get selected meta-model and weights
+    const metaModel = this.modelSelector.getCurrentMetaModel();
+    const modelWeights = this.modelSelector.getModelWeights();
+    
+    // Show loader
+    this.setLoading(true);
+    
+    try {
+        const response = await fetch('/api/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                accepted_changes: acceptedChanges,
+                edited_requirements: editedRequirements,
+                selected_models: selectedModels,
+                meta_model_id: metaModel,
+                model_weights: modelWeights
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update model');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            this.showNotification('Domain model updated successfully!', 'success');
+            
+            // Reset changes tracking
+            this.resultsDisplay.reset();
+            
+            // Update display with new results
+            this.resultsDisplay.displayResults(data);
+            
+            // Update the requirements text box with the updated requirements
+            if (data.requirements) {
+                this.requirementsEditor.value = data.requirements;
+            }
+        } else {
+            this.showNotification(`Error: ${data.error || 'Failed to update model'}`, 'danger');
+        }
+    } catch (error) {
+        console.error('Error updating model:', error);
+        this.showNotification(`Error: ${error.message}`, 'danger');
+    } finally {
+        this.setLoading(false);
+    }
+}
     
     /**
      * Set loading state
@@ -268,15 +317,15 @@ class RequirementsAnalyzer {
     setupDemoContent() {
         // Uncomment to add sample requirements for demo
         
-        if (!this.requirementsEditor.value) {
-            this.requirementsEditor.value = `REQ-001: The system shall allow users to register an account with email and password.
-REQ-002: Users shall be able to log in using their email and password.
-REQ-003: The system shall allow users to reset their password via email.
-REQ-004: Authenticated users shall be able to create new projects.
-REQ-005: Each project shall have a title, description, and creation date.
-REQ-006: Users shall be able to add tasks to their projects.
-REQ-007: Tasks shall have a title, description, due date, and status.`;
-        }
+//         if (!this.requirementsEditor.value) {
+//             this.requirementsEditor.value = `REQ-001: The system shall allow users to register an account with email and password.
+// REQ-002: Users shall be able to log in using their email and password.
+// REQ-003: The system shall allow users to reset their password via email.
+// REQ-004: Authenticated users shall be able to create new projects.
+// REQ-005: Each project shall have a title, description, and creation date.
+// REQ-006: Users shall be able to add tasks to their projects.
+// REQ-007: Tasks shall have a title, description, due date, and status.`;
+//         }
         
     }
 }

@@ -9,6 +9,7 @@
     <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/layout-fix.css') }}" rel="stylesheet">
 
+
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
@@ -99,6 +100,22 @@
                                     <i class="fas fa-brain me-2"></i>Analyze Requirements
                                 </button>
                             </div>
+<!-- In templates/index.html, find this section: -->
+<div class="file-upload-container mb-3">
+    <div class="d-flex align-items-center">
+        <div class="flex-grow-1">
+            <label for="srs-file-upload" class="form-label mb-0"><i class="fas fa-file-upload me-2"></i>Upload SRS Document</label>
+            <input class="form-control" type="file" id="srs-file-upload" accept=".txt,.md,.doc,.docx,.pdf">
+            <div class="form-text">Upload a Software Requirements Specification document for automatic extraction and analysis</div>
+        </div>
+    </div>
+
+    <div id="file-info-display" class="file-info mt-2" style="display: none;">
+        <i class="fas fa-file-alt"></i>
+        <span class="file-name">No file selected</span>
+        <span class="file-size"></span>
+    </div>
+</div>
                             <div class="card-body">
                                 <textarea id="requirements-editor" class="form-control" placeholder="Paste your software requirements here in any format (natural language, use cases, user stories, etc.)..."></textarea>
                             </div>
@@ -268,5 +285,7 @@
     <script src="{{ url_for('static', filename='js/resultsDisplay.js') }}"></script>
     <script src="{{ url_for('static', filename='js/resize-observer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/file-upload.js') }}"></script>
+
 </body>
 </html>

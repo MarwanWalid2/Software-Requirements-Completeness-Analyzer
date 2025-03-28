@@ -66,7 +66,7 @@ def get_available_models():
     """Get configuration for all available models"""
     models = {
         "deepseek": {
-            "name": "DeepSeek Reasoner",
+            "name": "DeepSeek Chat",
             "id": "deepseek",
             "model_name": "deepseek-chat",
             "api_key": get_deepseek_api_key(),
@@ -116,7 +116,7 @@ def get_available_meta_models():
             "id": "openai_meta",
             "description": "Use OpenAI to analyze and combine the results from other models",
             "enabled": bool(get_openai_api_key() and get_openai_api_key() != "dummy_key_replace_me"),
-            "model_name": "gpt-3.5-turbo"  # or "gpt-4o-mini" depending on access
+            "model_name": "o3-mini"
         },
         "deepseek": {
             "name": "DeepSeek Meta-Analysis",

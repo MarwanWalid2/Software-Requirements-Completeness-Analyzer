@@ -13,6 +13,7 @@ class ResultsDisplay {
         this.modelElementsList = document.getElementById('model-elements-list');
         this.detailContent = document.getElementById('detail-content');
         this.umlDiagram = document.getElementById('uml-diagram');
+        this.requirementsEditor = document.getElementById('requirements-editor');
         
         // DOM Elements - Aggregation Info
         this.domainModelAggregationInfo = document.getElementById('domain-model-aggregation-info');
@@ -87,42 +88,74 @@ class ResultsDisplay {
     /**
      * Display results from analysis
      */
-    displayResults(data) {
-        // Store current data
-        this.currentDomainModel = data.domain_model;
-        this.currentAnalysis = data.analysis;
-        
-        // Reset lists of changes
-        this.acceptedChanges = [];
-        this.editedRequirements = [];
-        this.processedItems.clear();
-        
-        // Show results container
-        this.resultsContainer.style.display = 'flex';
-        
-        // Display UML diagram
-        if (data.uml_image) {
-            this.umlDiagram.src = 'data:image/png;base64,' + data.uml_image;
-        }
-        
-        // Display domain model elements
-        this.displayDomainModelElements(data.domain_model);
-        
-        // Display requirement issues
-        this.displayRequirementIssues(data.analysis);
-        
-        // Display missing requirements
-        this.displayMissingRequirements(data.analysis);
-        
-        // Display model issues
-        this.displayModelIssues(data.analysis);
-        
-        // Display requirement completeness
-        this.displayRequirementCompleteness(data.analysis);
-        
-        // Display aggregation info
-        this.displayAggregationInfo(data);
+   /**
+ * Display results from analysis
+ */
+displayResults(data) {
+    // Store current data
+    this.currentDomainModel = data.domain_model;
+    this.currentAnalysis = data.analysis;
+    
+    // Reset lists of changes
+    this.acceptedChanges = [];
+    this.editedRequirements = [];
+    this.processedItems.clear();
+    
+    // Show results container
+    this.resultsContainer.style.display = 'flex';
+    
+    // Display UML diagram
+    if (data.uml_image) {
+        this.umlDiagram.src = 'data:image/png;base64,' + data.uml_image;
     }
+    
+    // Display domain model elements
+    this.displayDomainModelElements(data.domain_model);
+    
+    // Display requirement issues
+    this.displayRequirementIssues(data.analysis);
+    
+    // Display missing requirements
+    this.displayMissingRequirements(data.analysis);
+    
+    // Display model issues
+    this.displayModelIssues(data.analysis);
+    
+    // Display requirement completeness
+    this.displayRequirementCompleteness(data.analysis);
+    
+    // Display aggregation info
+    this.displayAggregationInfo(data);
+    
+    // Update requirements in the text editor if they're provided
+    if (data.requirements && this.requirementsEditor) {
+        this.updateRequirementsEditor(data.requirements);
+    }
+}
+
+/**
+ * Update the requirements editor with new requirements
+ */
+updateRequirementsEditor(requirements) {
+    // Reference to the requirements editor
+    const requirementsEditor = document.getElementById('requirements-editor');
+    if (requirementsEditor) {
+        // Clear the current content
+        requirementsEditor.value = '';
+        
+        // Add the new content with a small delay to ensure smooth UI update
+        setTimeout(() => {
+            requirementsEditor.value = requirements;
+            
+            // Trigger a change event to ensure any listeners are notified
+            const event = new Event('change', { bubbles: true });
+            requirementsEditor.dispatchEvent(event);
+            
+            // Scroll to the top of the editor
+            requirementsEditor.scrollTop = 0;
+        }, 50);
+    }
+}
     
     /**
      * Display aggregation information

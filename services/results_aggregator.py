@@ -25,9 +25,14 @@ class ResultsAggregator:
         self.meta_models = get_available_meta_models()
         self.custom_weights = custom_weights or {}
         
-        if meta_model_id not in self.meta_models:
-            logger.warning(f"Unknown meta model ID: {meta_model_id}, falling back to majority vote")
+        normalized_id = self._normalize_meta_model_id(meta_model_id)
+        
+        # Then check if it exists in available models
+        if normalized_id not in self.meta_models:
+            logger.warning(f"Unknown meta model ID: {meta_model_id} (normalized: {normalized_id}), falling back to majority vote")
             self.meta_model_id = "majority"
+        else:
+            self.meta_model_id = normalized_id
 
     def _get_model_weights(self):
         """Get model weights, using custom weights if provided or default weights otherwise"""
@@ -66,6 +71,404 @@ class ResultsAggregator:
         
         # Otherwise use default weights
         return default_weights
+
+    def _normalize_meta_model_id(self, meta_model_id):
+        """
+        Normalize meta model ID to handle both with and without _meta suffix
+        """
+        # Define mappings for meta model IDs
+        meta_model_mappings = {
+            # Standard to standard
+            "majority": "majority", 
+            "weighted": "weighted",
+            
+            # OpenAI variants
+            "openai": "openai",
+            "openai_meta": "openai",
+            
+            # DeepSeek variants
+            "deepseek": "deepseek",
+            "deepseek_meta": "deepseek",
+            
+            # Claude variants
+            "claude": "claude",
+            "claude_meta": "claude"
+        }
+        
+        # Return the normalized ID or the original if not found
+        return meta_model_mappings.get(meta_model_id, "majority")
+    def aggregate_extracted_requirements(self, model_results):
+        """
+        Aggregate requirements extracted from multiple LLMs
+        
+        Args:
+            model_results (list): List of results from different models, each containing
+                                extracted requirements
+        
+        Returns:
+            dict: Aggregated requirements and metadata
+        """
+        logger.info(f"Aggregating extracted requirements using {self.meta_model_id} strategy")
+        
+        if len(model_results) == 0:
+            logger.error("No model results to aggregate")
+            return {
+                "extracted_requirements": "",
+                "requirements_count": 0,
+                "requirements_list": [],
+                "reasoning": "No model results available for aggregation"
+            }
+        
+        if len(model_results) == 1:
+            logger.info("Only one model result, no aggregation needed")
+            return model_results[0]
+        
+        # Extract requirements lists from results
+        requirements_data = []
+        for result in model_results:
+            if result and "extracted_requirements" in result and result["extracted_requirements"]:
+                requirements_data.append({
+                    "model_id": result.get("model_id", "unknown"),
+                    "requirements_list": result.get("requirements_list", [])
+                })
+        
+        if len(requirements_data) == 0:
+            logger.error("No valid requirements found in results")
+            # Log more details about the model results to help diagnose the issue
+            for i, result in enumerate(model_results):
+                logger.debug(f"Model result {i+1} keys: {result.keys() if result else 'None'}")
+                if result and "error" in result:
+                    logger.debug(f"Model result {i+1} error: {result['error']}")
+            
+            return {
+                "extracted_requirements": "",
+                "requirements_count": 0,
+                "requirements_list": [],
+                "reasoning": "No valid requirements found in results"
+            }
+        
+        if len(requirements_data) == 1:
+            logger.info("Only one valid requirements result, no aggregation needed")
+            for result in model_results:
+                if "extracted_requirements" in result and result["extracted_requirements"]:
+                    return result
+        
+        # Use the appropriate aggregation strategy
+        normalized_meta_id = self._normalize_meta_model_id(self.meta_model_id)
+    
+        if normalized_meta_id == "majority":
+            return self._majority_vote_requirements(requirements_data, model_results)
+        elif normalized_meta_id == "weighted":
+            return self._weighted_vote_requirements(requirements_data, model_results)
+        elif normalized_meta_id in ["openai", "deepseek", "claude"]:
+            return self._llm_based_requirements_aggregation(requirements_data, model_results, normalized_meta_id)
+        else:
+            logger.warning(f"Unknown aggregation strategy: {self.meta_model_id}, falling back to majority vote")
+            return self._majority_vote_requirements(requirements_data, model_results)
+
+    def _majority_vote_requirements(self, requirements_data, original_results):
+        """
+        Aggregate requirements using majority voting
+        
+        This method:
+        1. Normalizes requirement text to handle minor differences
+        2. Counts occurrences of similar requirements across models
+        3. Includes requirements that appear in majority of models
+        """
+        logger.info("Using majority vote to aggregate requirements")
+        
+        # Process all requirements and create normalized versions for comparison
+        all_requirements = []
+        for data in requirements_data:
+            for req in data["requirements_list"]:
+                # Normalize the requirement for better comparison
+                # Extract the ID and text
+                parts = req.split(':', 1)
+                req_id = parts[0].strip() if len(parts) > 1 else ""
+                req_text = parts[1].strip() if len(parts) > 1 else parts[0].strip()
+                
+                # Normalize the text (remove extra spaces, lowercase)
+                normalized_text = ' '.join(req_text.lower().split())
+                
+                all_requirements.append({
+                    "model_id": data["model_id"],
+                    "requirement": req,
+                    "req_id": req_id,
+                    "req_text": req_text,
+                    "normalized_text": normalized_text
+                })
+        
+        # Group similar requirements
+        requirement_groups = {}
+        for req in all_requirements:
+            normalized = req["normalized_text"]
+            
+            # Check if this requirement is similar to any existing group
+            matched = False
+            for group_key in list(requirement_groups.keys()):
+                # Simple similarity check - can be improved with better algorithms
+                if self._text_similarity(normalized, group_key) > 0.8:
+                    requirement_groups[group_key].append(req)
+                    matched = True
+                    break
+            
+            # If no similar requirement found, create a new group
+            if not matched:
+                requirement_groups[normalized] = [req]
+        
+        # Calculate majority threshold
+        majority_threshold = len(requirements_data) // 2 + 1  # Simple majority
+        
+        # Select requirements that appear in majority of models
+        selected_requirements = []
+        
+        for group_key, reqs in requirement_groups.items():
+            # Count distinct models
+            models = set(req["model_id"] for req in reqs)
+            
+            if len(models) >= majority_threshold:
+                # Find the most detailed requirement in this group
+                best_req = max(reqs, key=lambda x: len(x["requirement"]))
+                selected_requirements.append(best_req["requirement"])
+        
+        # Sort requirements by ID if possible
+        selected_requirements.sort(key=lambda x: x.split(':')[0] if ':' in x else x)
+        
+        # Combine the requirements into a single string
+        extracted_requirements = '\n'.join(selected_requirements)
+        
+        # Create the result with reasoning
+        result = {
+            "extracted_requirements": extracted_requirements,
+            "requirements_count": len(selected_requirements),
+            "requirements_list": selected_requirements,
+            "reasoning": f"These requirements were aggregated from {len(requirements_data)} models " \
+                        f"using majority voting. Selected {len(selected_requirements)} requirements that appeared in at least " \
+                        f"{majority_threshold} models.",
+            "aggregation_info": {
+                "strategy": "majority_vote",
+                "model_count": len(requirements_data),
+                "majority_threshold": majority_threshold,
+                "contributing_models": [data["model_id"] for data in requirements_data]
+            }
+        }
+        
+        return result
+
+    def _weighted_vote_requirements(self, requirements_data, original_results):
+        """
+        Aggregate requirements using weighted voting
+        
+        Similar to majority voting but assigns weights to different models.
+        """
+        logger.info("Using weighted vote to aggregate requirements")
+        
+        # Get weights for different models
+        model_weights = self._get_model_weights()
+        
+        # Default weight for any model not in the weights dictionary
+        default_weight = 1.0
+        
+        # Total weight of all models for calculating threshold
+        total_weight = 0
+        
+        # Process all requirements and create normalized versions for comparison
+        all_requirements = []
+        for data in requirements_data:
+            model_id = data["model_id"]
+            weight = model_weights.get(model_id, default_weight)
+            total_weight += weight
+            
+            for req in data["requirements_list"]:
+                # Normalize the requirement for better comparison
+                # Extract the ID and text
+                parts = req.split(':', 1)
+                req_id = parts[0].strip() if len(parts) > 1 else ""
+                req_text = parts[1].strip() if len(parts) > 1 else parts[0].strip()
+                
+                # Normalize the text (remove extra spaces, lowercase)
+                normalized_text = ' '.join(req_text.lower().split())
+                
+                all_requirements.append({
+                    "model_id": model_id,
+                    "weight": weight,
+                    "requirement": req,
+                    "req_id": req_id,
+                    "req_text": req_text,
+                    "normalized_text": normalized_text
+                })
+        
+        # Group similar requirements
+        requirement_groups = {}
+        for req in all_requirements:
+            normalized = req["normalized_text"]
+            
+            # Check if this requirement is similar to any existing group
+            matched = False
+            for group_key in list(requirement_groups.keys()):
+                # Simple similarity check - can be improved with better algorithms
+                if self._text_similarity(normalized, group_key) > 0.8:
+                    requirement_groups[group_key].append(req)
+                    matched = True
+                    break
+            
+            # If no similar requirement found, create a new group
+            if not matched:
+                requirement_groups[normalized] = [req]
+        
+        # Calculate weighted threshold (50% of total weight)
+        weighted_threshold = total_weight / 2
+        
+        # Select requirements that exceed the weighted threshold
+        selected_requirements = []
+        
+        for group_key, reqs in requirement_groups.items():
+            # Calculate total weight for this requirement
+            req_weight = sum(req["weight"] for req in reqs)
+            
+            if req_weight >= weighted_threshold:
+                # Find the most detailed requirement in this group
+                best_req = max(reqs, key=lambda x: len(x["requirement"]))
+                selected_requirements.append(best_req["requirement"])
+        
+        # Sort requirements by ID if possible
+        selected_requirements.sort(key=lambda x: x.split(':')[0] if ':' in x else x)
+        
+        # Combine the requirements into a single string
+        extracted_requirements = '\n'.join(selected_requirements)
+        
+        # Create the result with reasoning
+        result = {
+            "extracted_requirements": extracted_requirements,
+            "requirements_count": len(selected_requirements),
+            "requirements_list": selected_requirements,
+            "reasoning": f"These requirements were aggregated from {len(requirements_data)} models " \
+                        f"using weighted voting. Selected {len(selected_requirements)} requirements that exceeded the weighted threshold of {weighted_threshold:.1f}.",
+            "aggregation_info": {
+                "strategy": "weighted_vote",
+                "model_count": len(requirements_data),
+                "weighted_threshold": weighted_threshold,
+                "contributing_models": [f"{data['model_id']} (weight: {model_weights.get(data['model_id'], default_weight)})" 
+                                    for data in requirements_data]
+            }
+        }
+        
+        return result
+
+    def _llm_based_requirements_aggregation(self, requirements_data, original_results, meta_model_id):
+        """
+        Use an LLM to aggregate requirements from multiple sources
+        
+        Args:
+            requirements_data (list): List of requirements from different LLMs
+            original_results (list): Original results from LLMs
+            meta_model_id (str): ID of the LLM to use for aggregation
+        
+        Returns:
+            dict: Aggregated requirements and reasoning
+        """
+        logger.info(f"Using {meta_model_id} LLM to aggregate requirements")
+        
+        try:
+            # Prepare the prompt for the LLM
+            prompt = """You are an expert in software requirements engineering. You need to analyze multiple sets of extracted requirements from different LLMs and create a consolidated set that:
+
+    1. Includes all important requirements without duplication
+    2. Uses consistent ID numbering
+    3. Maintains clear and concise language
+    4. Resolves any conflicts between different extractions
+    5. Ensures all requirements are well-formatted
+
+    OUTPUT FORMAT:
+    Output ONLY the consolidated requirements in this format, with ONE requirement per line:
+
+    REQ-ID: Requirement description
+
+    For example:
+    REQ-001: The system shall allow users to register an account with email and password.
+    REQ-002: The system shall validate all user inputs for security purposes.
+
+    DO NOT include any other text, explanations, or commentary in your response. 
+    ONLY return the numbered requirements list.
+
+    SOURCE REQUIREMENTS:
+    """
+            
+            # Add each source requirements list
+            for i, data in enumerate(requirements_data):
+                requirements_text = '\n'.join(data["requirements_list"])
+                prompt += f"\n\nMODEL {i+1} ({data['model_id']}):\n{requirements_text}\n"
+            
+            # Create the messages for the LLM
+            messages = [
+                {"role": "system", "content": "You are an expert in software requirements engineering specializing in requirements consolidation."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            # Get the LLM adapter
+            adapter = get_adapter(meta_model_id)
+            
+            # Generate the response
+            response = adapter.generate_response(messages)
+            
+            # Extract the response content
+            extracted_text = response["content"]
+            if not extracted_text:
+                raise ValueError("Empty response content")
+            
+            # Process the extracted requirements
+            requirements_list = []
+            for line in extracted_text.strip().split('\n'):
+                line = line.strip()
+                if line and (':' in line):
+                    requirements_list.append(line)
+            
+            logger.info(f"Consolidated {len(requirements_list)} requirements using {meta_model_id}")
+            
+            # Combine the requirements into a single string
+            extracted_requirements = '\n'.join(requirements_list)
+            
+            # Create the result
+            result = {
+                "extracted_requirements": extracted_requirements,
+                "requirements_count": len(requirements_list),
+                "requirements_list": requirements_list,
+                "reasoning": f"These requirements were consolidated from {len(requirements_data)} models using {meta_model_id} as a meta-model.",
+                "aggregation_info": {
+                    "strategy": f"llm_based_{meta_model_id}",
+                    "model_count": len(requirements_data),
+                    "contributing_models": [data["model_id"] for data in requirements_data],
+                    "meta_model_id": meta_model_id
+                }
+            }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in LLM-based requirements aggregation: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+            # Fall back to majority vote
+            logger.info("Falling back to majority vote due to LLM aggregation error")
+            return self._majority_vote_requirements(requirements_data, original_results)
+
+    def _text_similarity(self, text1, text2):
+        """
+        Calculate similarity between two texts (simple version)
+        Returns a value between 0 (completely different) and 1 (identical)
+        """
+        # Simple Jaccard similarity
+        words1 = set(text1.split())
+        words2 = set(text2.split())
+        
+        # Handle empty sets
+        if not words1 or not words2:
+            return 0.0
+        
+        intersection = len(words1.intersection(words2))
+        union = len(words1.union(words2))
+        
+        return intersection / union if union > 0 else 0.0
     
     def aggregate_domain_models(self, model_results):
         """

@@ -21,7 +21,156 @@ class DomainModelAnalyzer:
         # Instead, we'll use the adapters as needed
         self.max_retries = 1
         self.retry_delay = 5  # seconds
-    
+
+
+    def extract_requirements_from_srs(self, srs_content, selected_models=None, meta_model_id=None, model_weights=None):
+        """
+        Extract requirements from a complete SRS document
+        
+        Args:
+            srs_content (str): The full SRS document content
+            selected_models (list): List of model IDs to use
+            meta_model_id (str): ID of the meta model to use for aggregation
+            model_weights (dict): Custom weights for each model when using weighted voting
+        
+        Returns:
+            dict: Extracted requirements and metadata
+        """
+        logger.info(f"Extracting requirements from SRS using {len(selected_models) if selected_models else 0} models")
+        
+        if not selected_models:
+            # Use Deepseek as fallback for backward compatibility
+            logger.warning("No models specified, falling back to DeepSeek")
+            selected_models = ["deepseek"]
+        
+        # Prompt for requirement extraction with detailed instructions
+        prompt = """
+        You are an expert in software requirements analysis. Your task is to extract all requirements from the provided Software Requirements Specification (SRS) document.
+
+        Guidelines for extraction:
+        1. Identify requirements (clearly stated, often with "shall" or "must", or if even it is in a scenario format) and their sub-requirements (ex: REQ1 and REQ 1.1 REQ1.2 REQ1.3 etc)
+        2. Understand the system context first before extracting requirements to ensure accurate extraction
+        3. Maintain traceability by keeping requirement IDs if present or assigning new IDs (e.g., REQ-001, REQ-002)
+        4. Group related requirements together
+        5. Each extracted requirement should be self-contained and clearly expressed
+        6. Include both functional requirements (what the system should do) and non-functional requirements (constraints)
+        7. Format each requirement with ID and description
+
+        OUTPUT FORMAT:
+        Output ONLY the extracted requirements in this format, with ONE requirement per line:
+        
+        REQ-ID: Requirement description
+        
+        For example:
+        REQ-001: The system shall allow users to register an account with email and password.
+        REQ-002: The system shall validate all user inputs for security purposes.
+        
+        DO NOT include any other text, explanations, or commentary in your response. 
+        ONLY return the numbered requirements list. RETURN THE RREQUIREMENTS IN THE SAME WORDING AS IN THE SRS DOCUMENT. ALWAYS USE ORIGINAL TEXT.
+
+        Here is the SRS document:
+        """
+        
+        messages = [{"role": "user", "content": prompt + srs_content}]
+        
+        # If only one model selected, use it directly
+        if len(selected_models) == 1:
+            model_id = selected_models[0]
+            return self._extract_requirements_with_model(model_id, messages)
+        
+        # Use multiple models and aggregate results
+        model_results = self._run_models_in_parallel(
+            selected_models, 
+            "extract_requirements", 
+            messages
+        )
+        
+        logger.info(f"Got {len(model_results)} results from models")
+        
+        # Add debugging for the model results
+        for i, result in enumerate(model_results):
+            model_id = result.get("model_id", f"model-{i}")
+            reqs_count = result.get("requirements_count", 0)
+            has_error = "error" in result
+            logger.info(f"Model {model_id} extracted {reqs_count} requirements, has error: {has_error}")
+            if has_error:
+                logger.info(f"Error: {result['error']}")
+        
+        # Aggregate results
+        aggregator = ResultsAggregator(meta_model_id or "majority", model_weights)
+        return aggregator.aggregate_extracted_requirements(model_results)
+
+    def _extract_requirements_with_model(self, model_id, messages):
+        """
+        Extract requirements using a specific LLM
+        
+        Args:
+            model_id (str): ID of the model to use
+            messages (list): Messages to send to the LLM
+        
+        Returns:
+            dict: Extracted requirements and metadata
+        """
+        logger.info(f"Extracting requirements with {model_id}")
+        
+        # Get the adapter for this model
+        adapter = get_adapter(model_id)
+        
+        # Try with retries
+        for attempt in range(self.max_retries):
+            try:
+                logger.info(f"Calling {model_id} API for requirements extraction (attempt {attempt+1}/{self.max_retries})")
+                
+                # Generate response
+                response = adapter.generate_response(messages)
+                
+                # Extract the response content
+                extracted_text = response["content"]
+                if not extracted_text:
+                    raise ValueError("Empty response content")
+                
+                logger.debug(f"Extracted content length: {len(extracted_text)}")
+                logger.debug(f"Extracted content sample: {extracted_text[:500]}...")
+                
+                # Process the extracted requirements
+                requirements_list = []
+                for line in extracted_text.strip().split('\n'):
+                    line = line.strip()
+                    if line and (':' in line):
+                        requirements_list.append(line)
+                
+                logger.info(f"Extracted {len(requirements_list)} requirements")
+                
+                # Combine the requirements into a single string
+                extracted_requirements = '\n'.join(requirements_list)
+                
+                return {
+                    "model_id": model_id,
+                    "extracted_requirements": extracted_requirements,
+                    "requirements_count": len(requirements_list),
+                    "requirements_list": requirements_list
+                }
+                    
+            except Exception as e:
+                logger.error(f"{model_id} API request error for requirements extraction (attempt {attempt+1}): {str(e)}")
+                logger.error(traceback.format_exc())
+                
+                # If not the last attempt, retry
+                if attempt < self.max_retries - 1:
+                    logger.info(f"Retrying after error (waiting {self.retry_delay} seconds)")
+                    time.sleep(self.retry_delay)
+                    continue
+        
+        # If all attempts failed, return an empty result
+        logger.error(f"All {model_id} API attempts failed for requirements extraction")
+        return {
+            "model_id": model_id,
+            "extracted_requirements": "",
+            "requirements_count": 0,
+            "requirements_list": [],
+            "error": f"All {model_id} API attempts failed"
+        }
+        
     def create_domain_model(self, requirements, selected_models=None, meta_model_id=None, model_weights=None):
         """
         Generate a domain model from requirements using one or more LLMs
@@ -923,6 +1072,8 @@ class DomainModelAnalyzer:
                     return self._analyze_requirements_with_model(model_id, messages, missing_req, req_completeness)
                 elif operation_type == "update_domain_model":
                     return {"model_id": model_id, "domain_model": self._update_domain_model_with_model(model_id, messages, default_result.get("domain_model", {}))}
+                elif operation_type == "extract_requirements":
+                    return self._extract_requirements_with_model(model_id, messages)
                 else:
                     logger.error(f"Unknown operation type: {operation_type}")
                     return {"error": f"Unknown operation type: {operation_type}"}

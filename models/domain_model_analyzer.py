@@ -305,7 +305,7 @@ class DomainModelAnalyzer:
                     logger.warning(f"Error processing domain model: {str(e)}")
                     
                     # Save the raw response for debugging
-                    with open(f"log/raw_domain_model_response_{model_id}_{attempt}.txt", "w") as f:
+                    with open(f"log/raw_domain_model_response_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
                         f.write(domain_model_json)
                     
                     # If not the last attempt, try again
@@ -424,69 +424,110 @@ class DomainModelAnalyzer:
     
         # Enhanced prompt with context
         prompt = """
-        You are an expert requirements analyst. Your task is to identify MISSING requirements that should exist 
-        based on the domain model and the provided requirements.
-        
+        You are an expert requirements analyst specializing in gap analysis for medical device systems. Your task is to identify SPECIFIC MISSING REQUIREMENTS by conducting a thorough comparison between the domain model and the provided requirements.
+
         """
-        
+
         # Add document context if available
-        if document_context:
-            prompt += """
-            # SYSTEM CONTEXT
-            Use this context to better understand the system, but focus your analysis on the requirements:
-            
-            System Overview: """ + document_context.get('system_overview', 'Not available') + """
-            
-            Stakeholders: """ + ', '.join(document_context.get('stakeholders', ['Not specified'])) + """
-            
-            Business Rules: 
-            """ + '\n'.join(['- ' + rule for rule in document_context.get('business_rules', ['Not specified'])]) + """
-            
-            External Systems: 
-            """ + '\n'.join(['- ' + system for system in document_context.get('external_systems', ['Not specified'])]) + """
-            
-            """
-        
+        # if document_context:
+        #     prompt += """
+        # ## SYSTEM CONTEXT
+        # Use this context to understand the system and its domain:
+
+        # System Overview: """ + document_context.get('system_overview', 'Not available') + """
+
+        # Stakeholders: """ + ', '.join(document_context.get('stakeholders', ['Not specified'])) + """
+
+        # Business Rules: 
+        # """ + '\n'.join(['- ' + rule for rule in document_context.get('business_rules', ['Not specified'])]) + """
+
+        # External Systems: 
+        # """ + '\n'.join(['- ' + system for system in document_context.get('external_systems', ['Not specified'])]) + """
+
+        # """
+
         prompt += """
-        # ANALYSIS INSTRUCTIONS
-        
-        Focus on identifying:
-        1. Functionality that should exist based on the domain model entities but is not mentioned
-        2. Missing operations for entities (create, read, update, delete)
-        3. Missing business rules or validations
-        4. Missing non-functional requirements (security, performance, etc.)
-        5. Missing edge cases or error handling
-        6. Any other requirements that are implied by the domain model but not explicitly stated
-        
+        ## CRITICAL INSTRUCTION
+        Your primary task is to identify SPECIFIC MISSING REQUIREMENTS - not just categories of missing requirements, but precise, implementable requirements that should exist but are absent from the provided requirements.
+
+        ## CONCRETE REQUIREMENTS DETECTION METHODOLOGY
+        Follow this detailed, systematic approach to detect specific missing requirements:
+
+        1. **Create a Matrix of Expected Requirements**
+        - Identify each class, attribute, method, and relationship in the domain model
+        - For each element, list ALL specific requirements that should exist
+        - Check the provided requirements to see which ones are present vs. missing
+
+        2. **Vital Signs & Measurements Requirements**
+        - Check for requirements for EACH vital sign (heart rate, blood pressure, O2 saturation, respiration rate, temperature, ECG)
+        - For each vital sign, verify requirements for: display, color coding, units, ranges, alarms, data storage
+        - Compare against provided requirements to identify missing vital sign requirements
+
+        3. **Physical/Hardware Requirements**
+        - Identify all hardware components in the domain model (screen, sensors, pods, connectors, etc.)
+        - For each component, check for requirements covering: specifications, interfaces, power usage
+        - Identify missing hardware requirements (dimensions, weight, connector types, etc.)
+
+        4. **Power Management Requirements**
+        - Check for requirements covering: battery operation, external power, charging, power transitions
+        - Verify requirements for docking station operation are complete
+        - Identify missing power-related requirements
+
+        5. **Operation Mode Requirements**
+        - Check for requirements for each operating mode
+        - Verify transition requirements between modes
+        - Identify missing mode-related requirements
+
+        6. **Regulatory & Safety Requirements**
+        - Check for ALL required compliance specifications (FDA, CDC, IEC standards, etc.)
+        - Verify infection control, cleaning, disinfection requirements
+        - Identify missing standards and regulatory requirements
+
+        7. **Verification by Function**
+        - Check that EVERY function mentioned in the domain model has corresponding requirements
+        - Verify that all relationships between classes have requirements that specify how they work
+        - Cross-check attribute values with requirements to ensure all expected values are specified
+
+        ## OUTPUT INSTRUCTIONS
+        Be SPECIFIC and CONCRETE in your output. Don't just say "missing regulatory requirements" - specify exactly which regulatory requirement is missing.
+
         FORMAT YOUR RESPONSE AS JSON:
         {
             "missing_requirements": [
                 {
                     "id": "MR1",
-                    "description": "Description of what's missing",
-                    "category": "Functional|Business Rule|CRUD Operation|Non-Functional|Error Handling",
+                    "description": "Specific description of what's missing",
+                    "category": "Vital Sign|Hardware|Power Management|User Interface|Regulatory|Safety|Data Management|Connectivity",
                     "severity": "CRITICAL|HIGH|MEDIUM|LOW",
-                    "suggested_requirement": "Suggested text for the requirement",
-                    "affected_model_elements": ["Class1", "Relationship2"],
-                    "rationale": "Why this requirement should exist"
+                    "suggested_requirement": "Complete, specific requirement text that should be added",
+                    "affected_model_elements": ["Specific.Class", "Specific.Method", "Specific.Attribute"],
+                    "rationale": "Detailed explanation of why this specific requirement should exist"
                 }
             ]
         }
-        
-        REQUIREMENTS:
-        
+
+        ## DOMAIN MODEL:
         """
-        
+
+        # Now we add the domain model in JSON format
         try:
             domain_model_text = json.dumps(domain_model, indent=2)
             logger.debug(f"Domain model JSON length for missing req detection: {len(domain_model_text)}")
         except Exception as e:
             logger.error(f"Error serializing domain model: {str(e)}")
             return {"missing_requirements": [], "error": f"Error serializing domain model: {str(e)}"}
-        
-        full_prompt = prompt + requirements + "\n\nDOMAIN MODEL:\n" + domain_model_text
+
+        prompt += domain_model_text
+
+        prompt += """
+
+        ## COMPLETE LIST OF REQUIREMENTS TO ANALYZE:
+
+        """
+
+        full_prompt = prompt + requirements
         messages = [{"role": "user", "content": full_prompt}]
-        
+
         logger.debug(f"Missing requirements detection prompt length: {len(full_prompt)}")
         
         # If only one model selected, use it directly
@@ -553,7 +594,7 @@ class DomainModelAnalyzer:
                 logger.debug(f"Missing requirements content sample: {result_json[:200]}...")
                 
                 # Save raw response for debugging
-                with open(f"log/raw_missing_requirements_{model_id}_{attempt}.txt", "w") as f:
+                with open(f"log/raw_missing_requirements_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
                     f.write(result_json)
                 
                 # Parse and validate the JSON
@@ -732,7 +773,7 @@ class DomainModelAnalyzer:
                 logger.debug(f"Requirement completeness content sample: {result_json[:200]}...")
                 
                 # Save raw response for debugging
-                with open(f"log/raw_requirement_completeness_{model_id}_{attempt}.txt", "w") as f:
+                with open(f"log/raw_requirement_completeness_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
                     f.write(result_json)
                 
                 # Parse and validate the JSON
@@ -951,7 +992,7 @@ class DomainModelAnalyzer:
                 logger.debug(f"Analysis content sample: {analysis_json[:200]}...")
                 
                 # Save raw analysis response for debugging
-                with open(f"log/raw_analysis_response_{model_id}_{attempt}.txt", "w") as f:
+                with open(f"log/raw_analysis_response_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
                     f.write(analysis_json)
                 
                 # Attempt to parse and validate the JSON

@@ -9,6 +9,9 @@ from services.llm_adapters import get_adapter
 from services.results_aggregator import ResultsAggregator
 from services.plantuml_service import generate_plantuml_image
 from utils.json_utils import extract_json_from_response, validate_domain_model, create_default_analysis
+from flask import current_app
+from flask import session
+
 
 logger = logging.getLogger(__name__)
 
@@ -333,6 +336,62 @@ class DomainModelAnalyzer:
             "error": f"All {model_id} API attempts failed",
             "reasoning": "Error occurred during model generation"
         }
+    def extract_context_from_srs(self, srs_content, selected_models=None, meta_model_id=None):
+        """
+        Extract important contextual information from the SRS document,
+        separate from the requirements themselves.
+        
+        Args:
+            srs_content (str): The full SRS document content
+            selected_models (list): List of model IDs to use
+            meta_model_id (str): ID of the meta model for aggregation
+            
+        Returns:
+            dict: Extracted context and metadata
+        """
+        prompt = """
+        You are an expert in software requirements analysis. Your task is to extract ONLY the important contextual information
+        from this Software Requirements Specification (SRS) document - NOT the requirements themselves.
+        
+        Extract:
+        1. System overview and purpose
+        2. Stakeholders and user descriptions
+        3. Definitions and terminology
+        4. Assumptions and dependencies
+        5. External interfaces and systems
+        6. Business rules and constraints
+        
+        DO NOT include the actual requirements in your response.
+        
+        RESPONSE FORMAT:
+        {
+            "system_overview": "Brief description of the system",
+            "stakeholders": ["List of stakeholders"],
+            "terminology": {"term": "definition", ...},
+            "assumptions": ["List of assumptions"],
+            "external_systems": ["List of external systems"],
+            "business_rules": ["List of business rules"]
+        }
+        
+        Here is the SRS document:
+        """
+        
+        messages = [{"role": "user", "content": prompt + srs_content}]
+        
+        # Use the same model infrastructure as requirements extraction
+        if len(selected_models) == 1:
+            model_id = selected_models[0]
+            result = self._extract_requirements_with_model(model_id, messages)
+        else:
+            model_results = self._run_models_in_parallel(
+                selected_models, 
+                "extract_context", 
+                messages
+            )
+            aggregator = ResultsAggregator(meta_model_id or "majority")
+            result = aggregator.aggregate_extraction_results(model_results)
+        
+        return result
     
     def detect_missing_requirements(self, requirements, domain_model, selected_models=None, meta_model_id=None, model_weights=None):
         """
@@ -358,11 +417,38 @@ class DomainModelAnalyzer:
         default_response = {
             "missing_requirements": []
         }
-        
-        # Enhanced prompt focused specifically on finding missing requirements
+        document_context= None
+
+        with current_app.app_context():
+          document_context = session.get('document_context', {})
+    
+        # Enhanced prompt with context
         prompt = """
         You are an expert requirements analyst. Your task is to identify MISSING requirements that should exist 
         based on the domain model and the provided requirements.
+        
+        """
+        
+        # Add document context if available
+        if document_context:
+            prompt += """
+            # SYSTEM CONTEXT
+            Use this context to better understand the system, but focus your analysis on the requirements:
+            
+            System Overview: """ + document_context.get('system_overview', 'Not available') + """
+            
+            Stakeholders: """ + ', '.join(document_context.get('stakeholders', ['Not specified'])) + """
+            
+            Business Rules: 
+            """ + '\n'.join(['- ' + rule for rule in document_context.get('business_rules', ['Not specified'])]) + """
+            
+            External Systems: 
+            """ + '\n'.join(['- ' + system for system in document_context.get('external_systems', ['Not specified'])]) + """
+            
+            """
+        
+        prompt += """
+        # ANALYSIS INSTRUCTIONS
         
         Focus on identifying:
         1. Functionality that should exist based on the domain model entities but is not mentioned
@@ -370,6 +456,7 @@ class DomainModelAnalyzer:
         3. Missing business rules or validations
         4. Missing non-functional requirements (security, performance, etc.)
         5. Missing edge cases or error handling
+        6. Any other requirements that are implied by the domain model but not explicitly stated
         
         FORMAT YOUR RESPONSE AS JSON:
         {
@@ -544,6 +631,12 @@ class DomainModelAnalyzer:
         1. For functional requirements: actor, action, object, result/outcome
         2. For non-functional requirements: quality attribute, measure, context
         3. For constraints: clear boundary condition, rationale
+        4. For business rules: condition, action, motivation
+        5. For use cases: actor, trigger, preconditions, postconditions, main flow, alternative flows
+        6. For user stories: role, feature, reason, acceptance criteria
+        7. For test cases: test case ID, description, expected result, priority, preconditions, steps, data, postconditions
+        8. For domain-specific requirements: domain entity, property, constraint, relationship
+        and so on, depending on the requirement type.
         
         FORMAT YOUR RESPONSE AS JSON:
         {
@@ -710,11 +803,36 @@ class DomainModelAnalyzer:
         # Get individual requirement completeness analysis
         requirement_completeness_result = self.analyze_requirement_completeness(requirements, domain_model, selected_models, meta_model_id, model_weights)
         
-        # Simplified prompt to reduce response size
         prompt = """
         You are a requirements analyst. Identify requirement issues compared to the domain model.
         
         Be concise and focus on the most important issues. Limit your analysis to critical problems.
+        
+        """
+        document_context= None
+        with current_app.app_context():   
+            document_context = session.get('document_context', {})
+
+        if document_context:
+            prompt += """
+            # SYSTEM CONTEXT
+            Use this context to better understand the system, but focus your analysis on the requirements:
+            
+            System Overview: """ + document_context.get('system_overview', 'Not available') + """
+            
+            Stakeholders: """ + ', '.join(document_context.get('stakeholders', ['Not specified'])) + """
+            
+            Business Rules: 
+            """ + '\n'.join(['- ' + rule for rule in document_context.get('business_rules', ['Not specified'])]) + """
+            
+            External Systems: 
+            """ + '\n'.join(['- ' + system for system in document_context.get('external_systems', ['Not specified'])]) + """
+            
+            """
+
+        # Simplified prompt to reduce response size
+        prompt += """
+       
         
         FORMAT YOUR RESPONSE AS JSON:
         {

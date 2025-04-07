@@ -1,8 +1,9 @@
 import logging
 import json
 import traceback
+import re
 from collections import Counter
-from utils.json_utils import extract_json_from_response, validate_domain_model
+from utils.json_utils import extract_json_from_response, validate_domain_model, create_default_analysis
 from services.llm_adapters import get_adapter
 from config import get_available_meta_models
 
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 class ResultsAggregator:
     """
     Aggregates results from multiple LLMs using various strategies
+    with improved preservation of unique insights and better error handling
     """
     
     def __init__(self, meta_model_id="majority", custom_weights=None):
@@ -27,12 +29,14 @@ class ResultsAggregator:
         
         normalized_id = self._normalize_meta_model_id(meta_model_id)
         
-        # Then check if it exists in available models
+        # Check if the normalized ID exists in available models
         if normalized_id not in self.meta_models:
-            logger.warning(f"Unknown meta model ID: {meta_model_id} (normalized: {normalized_id}), falling back to majority vote")
-            self.meta_model_id = "majority"
+            logger.warning(f"Unknown meta model ID: {meta_model_id} (normalized: {normalized_id}), falling back to improved aggregation")
+            self.meta_model_id = "improved"
         else:
             self.meta_model_id = normalized_id
+            
+        logger.info(f"Using aggregation strategy: {self.meta_model_id}")
 
     def _get_model_weights(self):
         """Get model weights, using custom weights if provided or default weights otherwise"""
@@ -81,6 +85,7 @@ class ResultsAggregator:
             # Standard to standard
             "majority": "majority", 
             "weighted": "weighted",
+            "improved": "improved",
             
             # OpenAI variants
             "openai": "openai",
@@ -96,379 +101,7 @@ class ResultsAggregator:
         }
         
         # Return the normalized ID or the original if not found
-        return meta_model_mappings.get(meta_model_id, "majority")
-    def aggregate_extracted_requirements(self, model_results):
-        """
-        Aggregate requirements extracted from multiple LLMs
-        
-        Args:
-            model_results (list): List of results from different models, each containing
-                                extracted requirements
-        
-        Returns:
-            dict: Aggregated requirements and metadata
-        """
-        logger.info(f"Aggregating extracted requirements using {self.meta_model_id} strategy")
-        
-        if len(model_results) == 0:
-            logger.error("No model results to aggregate")
-            return {
-                "extracted_requirements": "",
-                "requirements_count": 0,
-                "requirements_list": [],
-                "reasoning": "No model results available for aggregation"
-            }
-        
-        if len(model_results) == 1:
-            logger.info("Only one model result, no aggregation needed")
-            return model_results[0]
-        
-        # Extract requirements lists from results
-        requirements_data = []
-        for result in model_results:
-            if result and "extracted_requirements" in result and result["extracted_requirements"]:
-                requirements_data.append({
-                    "model_id": result.get("model_id", "unknown"),
-                    "requirements_list": result.get("requirements_list", [])
-                })
-        
-        if len(requirements_data) == 0:
-            logger.error("No valid requirements found in results")
-            # Log more details about the model results to help diagnose the issue
-            for i, result in enumerate(model_results):
-                logger.debug(f"Model result {i+1} keys: {result.keys() if result else 'None'}")
-                if result and "error" in result:
-                    logger.debug(f"Model result {i+1} error: {result['error']}")
-            
-            return {
-                "extracted_requirements": "",
-                "requirements_count": 0,
-                "requirements_list": [],
-                "reasoning": "No valid requirements found in results"
-            }
-        
-        if len(requirements_data) == 1:
-            logger.info("Only one valid requirements result, no aggregation needed")
-            for result in model_results:
-                if "extracted_requirements" in result and result["extracted_requirements"]:
-                    return result
-        
-        # Use the appropriate aggregation strategy
-        normalized_meta_id = self._normalize_meta_model_id(self.meta_model_id)
-    
-        if normalized_meta_id == "majority":
-            return self._majority_vote_requirements(requirements_data, model_results)
-        elif normalized_meta_id == "weighted":
-            return self._weighted_vote_requirements(requirements_data, model_results)
-        elif normalized_meta_id in ["openai", "deepseek", "claude"]:
-            return self._llm_based_requirements_aggregation(requirements_data, model_results, normalized_meta_id)
-        else:
-            logger.warning(f"Unknown aggregation strategy: {self.meta_model_id}, falling back to majority vote")
-            return self._majority_vote_requirements(requirements_data, model_results)
-
-    def _majority_vote_requirements(self, requirements_data, original_results):
-        """
-        Aggregate requirements using majority voting
-        
-        This method:
-        1. Normalizes requirement text to handle minor differences
-        2. Counts occurrences of similar requirements across models
-        3. Includes requirements that appear in majority of models
-        """
-        logger.info("Using majority vote to aggregate requirements")
-        
-        # Process all requirements and create normalized versions for comparison
-        all_requirements = []
-        for data in requirements_data:
-            for req in data["requirements_list"]:
-                # Normalize the requirement for better comparison
-                # Extract the ID and text
-                parts = req.split(':', 1)
-                req_id = parts[0].strip() if len(parts) > 1 else ""
-                req_text = parts[1].strip() if len(parts) > 1 else parts[0].strip()
-                
-                # Normalize the text (remove extra spaces, lowercase)
-                normalized_text = ' '.join(req_text.lower().split())
-                
-                all_requirements.append({
-                    "model_id": data["model_id"],
-                    "requirement": req,
-                    "req_id": req_id,
-                    "req_text": req_text,
-                    "normalized_text": normalized_text
-                })
-        
-        # Group similar requirements
-        requirement_groups = {}
-        for req in all_requirements:
-            normalized = req["normalized_text"]
-            
-            # Check if this requirement is similar to any existing group
-            matched = False
-            for group_key in list(requirement_groups.keys()):
-                # Simple similarity check - can be improved with better algorithms
-                if self._text_similarity(normalized, group_key) > 0.8:
-                    requirement_groups[group_key].append(req)
-                    matched = True
-                    break
-            
-            # If no similar requirement found, create a new group
-            if not matched:
-                requirement_groups[normalized] = [req]
-        
-        # Calculate majority threshold
-        majority_threshold = len(requirements_data) // 2 + 1  # Simple majority
-        
-        # Select requirements that appear in majority of models
-        selected_requirements = []
-        
-        for group_key, reqs in requirement_groups.items():
-            # Count distinct models
-            models = set(req["model_id"] for req in reqs)
-            
-            if len(models) >= majority_threshold:
-                # Find the most detailed requirement in this group
-                best_req = max(reqs, key=lambda x: len(x["requirement"]))
-                selected_requirements.append(best_req["requirement"])
-        
-        # Sort requirements by ID if possible
-        selected_requirements.sort(key=lambda x: x.split(':')[0] if ':' in x else x)
-        
-        # Combine the requirements into a single string
-        extracted_requirements = '\n'.join(selected_requirements)
-        
-        # Create the result with reasoning
-        result = {
-            "extracted_requirements": extracted_requirements,
-            "requirements_count": len(selected_requirements),
-            "requirements_list": selected_requirements,
-            "reasoning": f"These requirements were aggregated from {len(requirements_data)} models " \
-                        f"using majority voting. Selected {len(selected_requirements)} requirements that appeared in at least " \
-                        f"{majority_threshold} models.",
-            "aggregation_info": {
-                "strategy": "majority_vote",
-                "model_count": len(requirements_data),
-                "majority_threshold": majority_threshold,
-                "contributing_models": [data["model_id"] for data in requirements_data]
-            }
-        }
-        
-        return result
-
-    def _weighted_vote_requirements(self, requirements_data, original_results):
-        """
-        Aggregate requirements using weighted voting
-        
-        Similar to majority voting but assigns weights to different models.
-        """
-        logger.info("Using weighted vote to aggregate requirements")
-        
-        # Get weights for different models
-        model_weights = self._get_model_weights()
-        
-        # Default weight for any model not in the weights dictionary
-        default_weight = 1.0
-        
-        # Total weight of all models for calculating threshold
-        total_weight = 0
-        
-        # Process all requirements and create normalized versions for comparison
-        all_requirements = []
-        for data in requirements_data:
-            model_id = data["model_id"]
-            weight = model_weights.get(model_id, default_weight)
-            total_weight += weight
-            
-            for req in data["requirements_list"]:
-                # Normalize the requirement for better comparison
-                # Extract the ID and text
-                parts = req.split(':', 1)
-                req_id = parts[0].strip() if len(parts) > 1 else ""
-                req_text = parts[1].strip() if len(parts) > 1 else parts[0].strip()
-                
-                # Normalize the text (remove extra spaces, lowercase)
-                normalized_text = ' '.join(req_text.lower().split())
-                
-                all_requirements.append({
-                    "model_id": model_id,
-                    "weight": weight,
-                    "requirement": req,
-                    "req_id": req_id,
-                    "req_text": req_text,
-                    "normalized_text": normalized_text
-                })
-        
-        # Group similar requirements
-        requirement_groups = {}
-        for req in all_requirements:
-            normalized = req["normalized_text"]
-            
-            # Check if this requirement is similar to any existing group
-            matched = False
-            for group_key in list(requirement_groups.keys()):
-                # Simple similarity check - can be improved with better algorithms
-                if self._text_similarity(normalized, group_key) > 0.8:
-                    requirement_groups[group_key].append(req)
-                    matched = True
-                    break
-            
-            # If no similar requirement found, create a new group
-            if not matched:
-                requirement_groups[normalized] = [req]
-        
-        # Calculate weighted threshold (50% of total weight)
-        weighted_threshold = total_weight / 2
-        
-        # Select requirements that exceed the weighted threshold
-        selected_requirements = []
-        
-        for group_key, reqs in requirement_groups.items():
-            # Calculate total weight for this requirement
-            req_weight = sum(req["weight"] for req in reqs)
-            
-            if req_weight >= weighted_threshold:
-                # Find the most detailed requirement in this group
-                best_req = max(reqs, key=lambda x: len(x["requirement"]))
-                selected_requirements.append(best_req["requirement"])
-        
-        # Sort requirements by ID if possible
-        selected_requirements.sort(key=lambda x: x.split(':')[0] if ':' in x else x)
-        
-        # Combine the requirements into a single string
-        extracted_requirements = '\n'.join(selected_requirements)
-        
-        # Create the result with reasoning
-        result = {
-            "extracted_requirements": extracted_requirements,
-            "requirements_count": len(selected_requirements),
-            "requirements_list": selected_requirements,
-            "reasoning": f"These requirements were aggregated from {len(requirements_data)} models " \
-                        f"using weighted voting. Selected {len(selected_requirements)} requirements that exceeded the weighted threshold of {weighted_threshold:.1f}.",
-            "aggregation_info": {
-                "strategy": "weighted_vote",
-                "model_count": len(requirements_data),
-                "weighted_threshold": weighted_threshold,
-                "contributing_models": [f"{data['model_id']} (weight: {model_weights.get(data['model_id'], default_weight)})" 
-                                    for data in requirements_data]
-            }
-        }
-        
-        return result
-
-    def _llm_based_requirements_aggregation(self, requirements_data, original_results, meta_model_id):
-        """
-        Use an LLM to aggregate requirements from multiple sources
-        
-        Args:
-            requirements_data (list): List of requirements from different LLMs
-            original_results (list): Original results from LLMs
-            meta_model_id (str): ID of the LLM to use for aggregation
-        
-        Returns:
-            dict: Aggregated requirements and reasoning
-        """
-        logger.info(f"Using {meta_model_id} LLM to aggregate requirements")
-        
-        try:
-            # Prepare the prompt for the LLM
-            prompt = """You are an expert in software requirements engineering. You need to analyze multiple sets of extracted requirements from different LLMs and create a consolidated set that:
-
-    1. Includes all important requirements without duplication
-    2. Uses consistent ID numbering
-    3. Maintains clear and concise language
-    4. Resolves any conflicts between different extractions
-    5. Ensures all requirements are well-formatted
-
-    OUTPUT FORMAT:
-    Output ONLY the consolidated requirements in this format, with ONE requirement per line:
-
-    REQ-ID: Requirement description
-
-    For example:
-    REQ-001: The system shall allow users to register an account with email and password.
-    REQ-002: The system shall validate all user inputs for security purposes.
-
-    DO NOT include any other text, explanations, or commentary in your response. 
-    ONLY return the numbered requirements list.
-
-    SOURCE REQUIREMENTS:
-    """
-            
-            # Add each source requirements list
-            for i, data in enumerate(requirements_data):
-                requirements_text = '\n'.join(data["requirements_list"])
-                prompt += f"\n\nMODEL {i+1} ({data['model_id']}):\n{requirements_text}\n"
-            
-            # Create the messages for the LLM
-            messages = [
-                {"role": "system", "content": "You are an expert in software requirements engineering specializing in requirements consolidation."},
-                {"role": "user", "content": prompt}
-            ]
-            
-            # Get the LLM adapter
-            adapter = get_adapter(meta_model_id)
-            
-            # Generate the response
-            response = adapter.generate_response(messages)
-            
-            # Extract the response content
-            extracted_text = response["content"]
-            if not extracted_text:
-                raise ValueError("Empty response content")
-            
-            # Process the extracted requirements
-            requirements_list = []
-            for line in extracted_text.strip().split('\n'):
-                line = line.strip()
-                if line and (':' in line):
-                    requirements_list.append(line)
-            
-            logger.info(f"Consolidated {len(requirements_list)} requirements using {meta_model_id}")
-            
-            # Combine the requirements into a single string
-            extracted_requirements = '\n'.join(requirements_list)
-            
-            # Create the result
-            result = {
-                "extracted_requirements": extracted_requirements,
-                "requirements_count": len(requirements_list),
-                "requirements_list": requirements_list,
-                "reasoning": f"These requirements were consolidated from {len(requirements_data)} models using {meta_model_id} as a meta-model.",
-                "aggregation_info": {
-                    "strategy": f"llm_based_{meta_model_id}",
-                    "model_count": len(requirements_data),
-                    "contributing_models": [data["model_id"] for data in requirements_data],
-                    "meta_model_id": meta_model_id
-                }
-            }
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error in LLM-based requirements aggregation: {str(e)}")
-            logger.error(traceback.format_exc())
-            
-            # Fall back to majority vote
-            logger.info("Falling back to majority vote due to LLM aggregation error")
-            return self._majority_vote_requirements(requirements_data, original_results)
-
-    def _text_similarity(self, text1, text2):
-        """
-        Calculate similarity between two texts (simple version)
-        Returns a value between 0 (completely different) and 1 (identical)
-        """
-        # Simple Jaccard similarity
-        words1 = set(text1.split())
-        words2 = set(text2.split())
-        
-        # Handle empty sets
-        if not words1 or not words2:
-            return 0.0
-        
-        intersection = len(words1.intersection(words2))
-        union = len(words1.union(words2))
-        
-        return intersection / union if union > 0 else 0.0
+        return meta_model_mappings.get(meta_model_id, "improved")
     
     def aggregate_domain_models(self, model_results):
         """
@@ -525,15 +158,19 @@ class ResultsAggregator:
                     return result
         
         # Use the appropriate aggregation strategy
-        if self.meta_model_id == "majority":
+        normalized_meta_id = self._normalize_meta_model_id(self.meta_model_id)
+        
+        if normalized_meta_id == "majority":
             return self._majority_vote_domain_models(domain_models, model_results)
-        elif self.meta_model_id == "weighted":
+        elif normalized_meta_id == "weighted":
             return self._weighted_vote_domain_models(domain_models, model_results)
-        elif self.meta_model_id in ["openai", "deepseek", "claude"]:
-            return self._llm_based_aggregation(domain_models, model_results, self.meta_model_id)
+        elif normalized_meta_id == "improved":
+            return self._improved_domain_models(domain_models, model_results)
+        elif normalized_meta_id in ["openai", "deepseek", "claude"]:
+            return self._llm_based_aggregation(domain_models, model_results, normalized_meta_id)
         else:
-            logger.warning(f"Unknown aggregation strategy: {self.meta_model_id}, falling back to majority vote")
-            return self._majority_vote_domain_models(domain_models, model_results)
+            logger.warning(f"Unknown aggregation strategy: {self.meta_model_id}, falling back to improved aggregation")
+            return self._improved_domain_models(domain_models, model_results)
     
     def aggregate_analysis_results(self, model_results):
         """
@@ -592,15 +229,263 @@ class ResultsAggregator:
                     return result
         
         # Use the appropriate aggregation strategy
-        if self.meta_model_id == "majority":
+        normalized_meta_id = self._normalize_meta_model_id(self.meta_model_id)
+        
+        if normalized_meta_id == "majority":
             return self._majority_vote_analysis(analysis_results, model_results)
-        elif self.meta_model_id == "weighted":
+        elif normalized_meta_id == "weighted":
             return self._weighted_vote_analysis(analysis_results, model_results)
-        elif self.meta_model_id in ["openai", "deepseek", "claude"]:
-            return self._llm_based_analysis_aggregation(analysis_results, model_results, self.meta_model_id)
+        elif normalized_meta_id == "improved":
+            return self._improved_analysis(analysis_results, model_results)
+        elif normalized_meta_id in ["openai", "deepseek", "claude"]:
+            return self._llm_based_analysis_aggregation(analysis_results, model_results, normalized_meta_id)
         else:
-            logger.warning(f"Unknown aggregation strategy: {self.meta_model_id}, falling back to majority vote")
-            return self._majority_vote_analysis(analysis_results, model_results)
+            logger.warning(f"Unknown aggregation strategy: {self.meta_model_id}, falling back to improved analysis")
+            return self._improved_analysis(analysis_results, model_results)
+    
+
+    def _is_similar_issue(self, issue1, issue2):
+        """Check if two issues are similar based on type and description"""
+        # Check issue type
+        if issue1.get("issue_type") != issue2.get("issue_type"):
+            return False
+            
+        # Compare descriptions
+        desc1 = issue1.get("description", "").lower()
+        desc2 = issue2.get("description", "").lower()
+        
+        if desc1 and desc2:
+            return self._text_similarity(desc1, desc2) > 0.6
+            
+        return False
+        
+    def _group_similar_missing_requirements(self, requirements):
+        """
+        Group similar missing requirements to avoid duplication
+        while preserving unique insights
+        """
+        # Initialize groups
+        groups = []
+        
+        for req in requirements:
+            # Extract key information for similarity comparison
+            req_desc = req.get("description", "").lower()
+            req_category = req.get("category", "").lower()
+            req_elements = [el.lower() for el in req.get("affected_model_elements", [])]
+            req_suggestion = req.get("suggested_requirement", "").lower()
+            
+            # Check if this requirement is similar to any existing group
+            matched = False
+            for group in groups:
+                similarity_score = 0
+                
+                # Compare with each requirement in the group
+                for group_req in group:
+                    group_desc = group_req.get("description", "").lower()
+                    group_category = group_req.get("category", "").lower()
+                    group_elements = [el.lower() for el in group_req.get("affected_model_elements", [])]
+                    group_suggestion = group_req.get("suggested_requirement", "").lower()
+                    
+                    # Calculate similarity based on multiple factors
+                    # Description similarity (most important)
+                    desc_similarity = self._text_similarity(req_desc, group_desc)
+                    if desc_similarity > 0.6:
+                        similarity_score += 3
+                    
+                    # Category similarity
+                    if req_category and group_category and req_category == group_category:
+                        similarity_score += 1
+                    
+                    # Affected elements similarity
+                    common_elements = set(req_elements).intersection(set(group_elements))
+                    if common_elements:
+                        similarity_score += len(common_elements) / max(len(req_elements), len(group_elements))
+                    
+                    # Suggested requirement similarity
+                    if req_suggestion and group_suggestion:
+                        sugg_similarity = self._text_similarity(req_suggestion, group_suggestion)
+                        if sugg_similarity > 0.5:
+                            similarity_score += 1
+                
+                # If similarity score is high enough, add to this group
+                if similarity_score >= 3:  # Threshold for considering requirements similar
+                    group.append(req)
+                    matched = True
+                    break
+            
+            # If no match found, create a new group
+            if not matched:
+                groups.append([req])
+        
+        return groups
+    
+    def _select_best_requirement(self, group):
+        """
+        Select the best requirement from a group of similar requirements
+        """
+        if len(group) == 1:
+            return group[0].copy()
+        
+        # Score each requirement based on completeness and clarity
+        scored_reqs = []
+        for req in group:
+            score = 0
+            
+            # More detailed description (longer but not too long)
+            desc_len = len(req.get("description", ""))
+            if 30 <= desc_len <= 150:
+                score += 1
+                
+            # More specific suggestion
+            sugg_len = len(req.get("suggested_requirement", ""))
+            if sugg_len >= 50:
+                score += 1
+                
+            # More detailed rationale
+            rationale_len = len(req.get("rationale", ""))
+            if rationale_len >= 80:
+                score += 1
+                
+            # Has affected model elements
+            if req.get("affected_model_elements", []):
+                score += 1
+                
+            # Higher severity (CRITICAL > HIGH > MEDIUM > LOW)
+            severity = req.get("severity", "").upper()
+            if severity == "CRITICAL":
+                score += 3
+            elif severity == "HIGH":
+                score += 2
+            elif severity == "MEDIUM":
+                score += 1
+                
+            # Prefer requirements from certain models if needed
+            # This can be customized based on model performance
+            model = req.get("source_model", "").lower()
+            if model == "claude":
+                score += 0.2
+            elif model == "deepseek":
+                score += 0.1
+                
+            scored_reqs.append((score, req))
+        
+        # Choose the requirement with the highest score
+        best_req = max(scored_reqs, key=lambda x: x[0])[1].copy()
+        
+        # Combine sources if this represents multiple models' findings
+        source_models = set(req.get("source_model", "unknown") for req in group)
+        if len(source_models) > 1:
+            best_req["source_models"] = list(source_models)
+        
+        # Remove the single source model field
+        if "source_model" in best_req:
+            del best_req["source_model"]
+            
+        return best_req
+    
+    def _improved_domain_models(self, domain_models, original_results):
+        """
+        Enhanced aggregation method for domain models that preserves unique insights
+        """
+        logger.info("Using improved aggregation method for domain models")
+        
+        # Extract all classes and relationships
+        all_classes = {}
+        all_relationships = {}
+        
+        for model in domain_models:
+            model_id = model.get("model_id", "unknown")
+            dm = model.get("domain_model", {})
+            
+            # Process classes
+            for cls in dm.get("classes", []):
+                name = cls.get("name")
+                if not name:
+                    continue
+                    
+                if name not in all_classes:
+                    all_classes[name] = cls
+                else:
+                    # Merge with existing class, keeping the most detailed version
+                    existing = all_classes[name]
+                    
+                    # Keep the longer description
+                    if len(cls.get("description", "")) > len(existing.get("description", "")):
+                        existing["description"] = cls.get("description", "")
+                    
+                    # Merge attributes, avoiding duplicates
+                    existing_attrs = {attr.get("name"): attr for attr in existing.get("attributes", [])}
+                    for attr in cls.get("attributes", []):
+                        attr_name = attr.get("name")
+                        if attr_name and attr_name not in existing_attrs:
+                            if "attributes" not in existing:
+                                existing["attributes"] = []
+                            existing["attributes"].append(attr)
+                    
+                    # Merge methods, avoiding duplicates
+                    existing_methods = {method.get("name"): method for method in existing.get("methods", [])}
+                    for method in cls.get("methods", []):
+                        method_name = method.get("name")
+                        if method_name and method_name not in existing_methods:
+                            if "methods" not in existing:
+                                existing["methods"] = []
+                            existing["methods"].append(method)
+            
+            # Process relationships
+            for rel in dm.get("relationships", []):
+                source = rel.get("source")
+                target = rel.get("target")
+                rel_type = rel.get("type")
+                
+                if not (source and target and rel_type):
+                    continue
+                    
+                key = f"{source}:{target}:{rel_type}"
+                
+                if key not in all_relationships:
+                    all_relationships[key] = rel
+                else:
+                    # Keep the more detailed relationship
+                    existing = all_relationships[key]
+                    
+                    # Keep source/target multiplicity if present
+                    if rel.get("sourceMultiplicity") and not existing.get("sourceMultiplicity"):
+                        existing["sourceMultiplicity"] = rel.get("sourceMultiplicity")
+                    
+                    if rel.get("targetMultiplicity") and not existing.get("targetMultiplicity"):
+                        existing["targetMultiplicity"] = rel.get("targetMultiplicity")
+                    
+                    # Keep the longer description
+                    if len(rel.get("description", "")) > len(existing.get("description", "")):
+                        existing["description"] = rel.get("description", "")
+        
+        # Create the aggregated domain model
+        aggregated_model = {
+            "classes": list(all_classes.values()),
+            "relationships": list(all_relationships.values())
+        }
+        
+        # Choose the most complete PlantUML diagram
+        plantuml_diagrams = [(len(model["domain_model"].get("plantuml", "")), model["domain_model"].get("plantuml", "")) 
+                            for model in domain_models 
+                            if "domain_model" in model and model["domain_model"].get("plantuml")]
+        
+        if plantuml_diagrams:
+            # Get the longest diagram
+            aggregated_model["plantuml"] = max(plantuml_diagrams, key=lambda x: x[0])[1]
+        else:
+            # Generate a simple one if none exists
+            aggregated_model["plantuml"] = "@startuml\n@enduml"
+        
+        return {
+            "domain_model": aggregated_model,
+            "reasoning": "Domain model created using improved aggregation method to preserve unique elements from all models",
+            "aggregation_info": {
+                "strategy": "improved_aggregation",
+                "model_count": len(domain_models),
+                "contributing_models": [dm["model_id"] for dm in domain_models]
+            }
+        }
     
     def _majority_vote_domain_models(self, domain_models, original_results):
         """
@@ -902,6 +787,127 @@ class ResultsAggregator:
         
         return result
     
+    def _llm_based_aggregation(self, domain_models, original_results, meta_model_id):
+        """
+        Use an LLM to aggregate domain models from multiple sources
+        with improved error handling and better prompting
+        
+        Args:
+            domain_models (list): List of domain models from different LLMs
+            original_results (list): Original results from LLMs
+            meta_model_id (str): ID of the LLM to use for aggregation
+        
+        Returns:
+            dict: Aggregated domain model and reasoning
+        """
+        logger.info(f"Using {meta_model_id} LLM to aggregate domain models")
+        
+        try:
+            # Prepare the prompt for the LLM with clearer instructions
+            prompt = """You are a senior software architect tasked with creating a consensus domain model by combining multiple domain models generated by different LLMs.
+
+Analyze the provided domain models and create a single, coherent domain model that:
+1. Includes all important classes from the source models
+2. Resolves any conflicts between models
+3. Combines the best elements of each model
+4. Creates a complete and consistent view of the domain
+
+IMPORTANT: Your response MUST be valid JSON with the exact structure shown below.
+Do not include any explanatory text outside the JSON.
+
+{
+    "domain_model": {
+        "classes": [
+            {
+                "name": "ClassName",
+                "attributes": [
+                    {"name": "attributeName", "type": "dataType", "description": "description"}
+                ],
+                "methods": [
+                    {"name": "methodName", "parameters": [{"name": "paramName", "type": "paramType"}], "returnType": "returnType", "description": "description"}
+                ],
+                "description": "Class responsibility description"
+            }
+        ],
+        "relationships": [
+            {
+                "source": "SourceClass",
+                "target": "TargetClass",
+                "type": "association|composition|aggregation|inheritance|realization",
+                "sourceMultiplicity": "1|0..1|0..*|1..*",
+                "targetMultiplicity": "1|0..1|0..*|1..*",
+                "description": "Description of relationship"
+            }
+        ],
+        "plantuml": "PlantUML code that represents this domain model"
+    },
+    "reasoning": "Explanation of how you combined the models and resolved conflicts"
+}
+
+SOURCE DOMAIN MODELS:
+"""
+            
+            # Add each source domain model
+            for i, dm in enumerate(domain_models):
+                model_json = json.dumps(dm["domain_model"], indent=2)
+                prompt += f"\n\nMODEL {i+1} (from {dm['model_id']}):\n{model_json}\n"
+            
+            # Create the messages for the LLM
+            messages = [
+                {"role": "system", "content": "You are an expert software architect specializing in domain modeling and JSON responses. Always respond with valid JSON only."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            # Get the LLM adapter
+            adapter = get_adapter(meta_model_id)
+            
+            # Generate the response
+            response = adapter.generate_response(messages)
+            
+            # Extract and validate the JSON
+            result_json = response["content"]
+            logger.debug(f"Meta-model response content sample: {result_json[:200]}...")
+            
+            # Save raw response for debugging
+            with open(f"log/meta_model_raw_response_{meta_model_id}.txt", "w", encoding="utf-8") as f:
+                f.write(result_json)
+            
+            # Use enhanced JSON extraction
+            result = extract_json_from_response(result_json)
+            if not result:
+                logger.error("Failed to extract valid JSON from meta-model response")
+                # Notify the user about the fallback
+                logger.warning(f"Falling back to improved aggregation due to JSON parsing issues with {meta_model_id}")
+                return self._improved_domain_models(domain_models, original_results)
+            
+            # Validate the domain model
+            if "domain_model" in result:
+                result["domain_model"] = validate_domain_model(result["domain_model"])
+            else:
+                logger.error("Meta-model response missing domain_model key")
+                logger.warning(f"Falling back to improved aggregation because {meta_model_id} response lacks domain_model")
+                return self._improved_domain_models(domain_models, original_results)
+            
+            # Add aggregation info
+            result["aggregation_info"] = {
+                "strategy": f"llm_based_{meta_model_id}",
+                "model_count": len(domain_models),
+                "contributing_models": [dm["model_id"] for dm in domain_models],
+                "meta_model_id": meta_model_id
+            }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in LLM-based aggregation with {meta_model_id}: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+            # Provide detailed error for debugging
+            logger.warning(f"Falling back to improved aggregation due to error with {meta_model_id} meta-analysis: {str(e)}")
+            
+            # Fall back to improved aggregation
+            return self._improved_domain_models(domain_models, original_results)
+    
     def _majority_vote_analysis(self, analysis_results, original_results):
         """
         Aggregate analysis results using majority voting
@@ -1018,7 +1024,7 @@ class ResultsAggregator:
         # Select issues that appear in majority of models
         selected_req_issues = {}
         for key, issues in req_issue_groups.items():
-            if len(issues) >= majority_threshold:
+            if len(set(issue["model_id"] for issue in issues)) >= majority_threshold:
                 # Select the most detailed issue
                 most_detailed = max(issues, key=lambda x: len(x.get("description", "")))
                 req_id = most_detailed["requirement_id"]
@@ -1041,7 +1047,7 @@ class ResultsAggregator:
         # Select missing requirements that appear in majority of models
         selected_missing_reqs = []
         for key, missing_reqs in missing_req_groups.items():
-            if len(missing_reqs) >= majority_threshold:
+            if len(set(req["model_id"] for req in missing_reqs)) >= majority_threshold:
                 # Select the most detailed missing requirement
                 most_detailed = max(missing_reqs, key=lambda x: len(x.get("description", "")) + len(x.get("rationale", "")))
                 selected_missing_reqs.append({
@@ -1057,7 +1063,7 @@ class ResultsAggregator:
         # Select model issues that appear in majority of models
         selected_model_issues = []
         for key, model_issues in model_issue_groups.items():
-            if len(model_issues) >= majority_threshold:
+            if len(set(issue["model_id"] for issue in model_issues)) >= majority_threshold:
                 # Select the most detailed model issue
                 most_detailed = max(model_issues, key=lambda x: len(x.get("description", "")))
                 selected_model_issues.append({
@@ -1073,7 +1079,7 @@ class ResultsAggregator:
         # Select requirement completeness entries that appear in majority of models
         selected_completeness = []
         for key, completeness_entries in completeness_groups.items():
-            if key and len(completeness_entries) >= majority_threshold:
+            if key and len(set(entry["model_id"] for entry in completeness_entries)) >= majority_threshold:
                 # Average the completeness scores
                 avg_score = sum(entry["completeness_score"] for entry in completeness_entries) / len(completeness_entries)
                 
@@ -1245,7 +1251,7 @@ class ResultsAggregator:
         # Select issues that exceed the weighted threshold
         selected_req_issues = {}
         for key, issues in req_issue_groups.items():
-            # Calculate total weight for this issue
+            # Calculate total weight for this issue group
             issue_weight = sum(issue["weight"] for issue in issues)
             
             if issue_weight >= weighted_threshold:
@@ -1357,119 +1363,10 @@ class ResultsAggregator:
         
         return result
     
-    def _llm_based_aggregation(self, domain_models, original_results, meta_model_id):
-        """
-        Use an LLM to aggregate domain models from multiple sources
-        
-        Args:
-            domain_models (list): List of domain models from different LLMs
-            original_results (list): Original results from LLMs
-            meta_model_id (str): ID of the LLM to use for aggregation
-        
-        Returns:
-            dict: Aggregated domain model and reasoning
-        """
-        logger.info(f"Using {meta_model_id} LLM to aggregate domain models")
-        
-        try:
-            # Prepare the prompt for the LLM
-            prompt = """You are a senior software architect tasked with creating a consensus domain model by combining multiple domain models generated by different LLMs.
-
-Analyze the provided domain models and create a single, coherent domain model that:
-1. Includes all important classes from the source models
-2. Resolves any conflicts between models
-3. Combines the best elements of each model
-4. Creates a complete and consistent view of the domain
-
-FORMAT YOUR RESPONSE AS JSON with this structure:
-{
-    "domain_model": {
-        "classes": [
-            {
-                "name": "ClassName",
-                "attributes": [
-                    {"name": "attributeName", "type": "dataType", "description": "description"}
-                ],
-                "methods": [
-                    {"name": "methodName", "parameters": [{"name": "paramName", "type": "paramType"}], "returnType": "returnType", "description": "description"}
-                ],
-                "description": "Class responsibility description"
-            }
-        ],
-        "relationships": [
-            {
-                "source": "SourceClass",
-                "target": "TargetClass",
-                "type": "association|composition|aggregation|inheritance|realization",
-                "sourceMultiplicity": "1|0..1|0..*|1..*",
-                "targetMultiplicity": "1|0..1|0..*|1..*",
-                "description": "Description of relationship"
-            }
-        ],
-        "plantuml": "PlantUML code that represents this domain model"
-    },
-    "reasoning": "Explanation of how you combined the models and resolved conflicts"
-}
-
-SOURCE DOMAIN MODELS:
-"""
-            
-            # Add each source domain model
-            for i, dm in enumerate(domain_models):
-                model_json = json.dumps(dm["domain_model"], indent=2)
-                prompt += f"\n\nMODEL {i+1} (from {dm['model_id']}):\n{model_json}\n"
-            
-            # Create the messages for the LLM
-            messages = [
-                {"role": "system", "content": "You are an expert software architect specializing in domain modeling."},
-                {"role": "user", "content": prompt}
-            ]
-            
-            # Get the LLM adapter
-            adapter = get_adapter(meta_model_id)
-            
-            # Generate the response
-            response = adapter.generate_response(messages)
-            
-            # Extract and validate the JSON
-            result_json = response["content"]
-            logger.debug(f"Meta-model response content sample: {result_json[:200]}...")
-            
-            result = extract_json_from_response(result_json)
-            if not result:
-                logger.error("Failed to extract valid JSON from meta-model response")
-                # Fall back to majority vote
-                return self._majority_vote_domain_models(domain_models, original_results)
-            
-            # Validate the domain model
-            if "domain_model" in result:
-                result["domain_model"] = validate_domain_model(result["domain_model"])
-            else:
-                logger.error("Meta-model response missing domain_model key")
-                # Fall back to majority vote
-                return self._majority_vote_domain_models(domain_models, original_results)
-            
-            # Add aggregation info
-            result["aggregation_info"] = {
-                "strategy": f"llm_based_{meta_model_id}",
-                "model_count": len(domain_models),
-                "contributing_models": [dm["model_id"] for dm in domain_models],
-                "meta_model_id": meta_model_id
-            }
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error in LLM-based aggregation: {str(e)}")
-            logger.error(traceback.format_exc())
-            
-            # Fall back to majority vote
-            logger.info("Falling back to majority vote due to LLM aggregation error")
-            return self._majority_vote_domain_models(domain_models, original_results)
-    
     def _llm_based_analysis_aggregation(self, analysis_results, original_results, meta_model_id):
         """
-        Use an LLM to aggregate analysis results from multiple sources
+        Improved version that uses an LLM to aggregate analysis results with better error handling
+        and specific instructions to preserve ALL requirement completeness analyses
         
         Args:
             analysis_results (list): List of analysis results from different LLMs
@@ -1482,80 +1379,95 @@ SOURCE DOMAIN MODELS:
         logger.info(f"Using {meta_model_id} LLM to aggregate analysis results")
         
         try:
-            # Prepare the prompt for the LLM
+            # For requirement completeness, we'll bypass the LLM aggregation and use direct merging
+            # This ensures we preserve ALL requirement completeness analyses
+            
+            # First, extract and properly merge all requirement completeness analyses
+            all_completeness = self._merge_all_requirement_completeness(analysis_results)
+            
+            # Create limited inputs for the LLM to handle the other analysis components 
+            # without being overwhelmed by the completeness data
+            simplified_results = []
+            for result in analysis_results:
+                if "analysis" in result:
+                    simplified_result = {
+                        "model_id": result.get("model_id", "unknown"),
+                        "analysis": {
+                            "requirement_issues": result["analysis"].get("requirement_issues", []),
+                            "missing_requirements": result["analysis"].get("missing_requirements", []),
+                            "domain_model_issues": result["analysis"].get("domain_model_issues", [])
+                            # Intentionally excluding requirement_completeness
+                        }
+                    }
+                    simplified_results.append(simplified_result)
+            
+            # Prepare the prompt with focus on remaining components
             prompt = """You are a senior requirements analyst tasked with creating a consensus analysis by combining multiple requirement analyses generated by different LLMs.
 
-Analyze the provided analyses and create a single, coherent analysis that:
-1. Identifies the most important requirement issues
-2. Highlights missing requirements detected across multiple analyses
-3. Captures domain model issues that need attention
-4. Provides completeness assessment for requirements
+    Analyze all the input analyses and create a single, comprehensive analysis that:
+    1. PRESERVES ALL UNIQUE MISSING REQUIREMENTS from each analysis - don't discard unique insights
+    2. Identifies the most important requirement issues
+    3. Captures domain model issues that need attention
 
-FORMAT YOUR RESPONSE AS JSON with this structure:
-{
-    "analysis": {
-        "requirement_issues": [
-            {
-                "requirement_id": "R1",
-                "requirement_text": "text",
-                "issues": [
-                    {
-                        "issue_type": "Incomplete|Missing|Conflict|Inconsistency",
-                        "severity": "MUST FIX|SHOULD FIX|SUGGESTION",
-                        "description": "issue description",
-                        "suggested_fix": "suggested fix",
-                        "affected_model_elements": ["Class1", "Relationship2"]
-                    }
-                ]
-            }
-        ],
-        "missing_requirements": [
-            {
-                "id": "MR1",
-                "description": "Description of what's missing",
-                "category": "Functional|Business Rule|CRUD Operation|Non-Functional|Error Handling",
-                "severity": "CRITICAL|HIGH|MEDIUM|LOW",
-                "suggested_requirement": "Suggested text for the requirement",
-                "affected_model_elements": ["Class1", "Relationship2"],
-                "rationale": "Why this requirement should exist"
-            }
-        ],
-        "domain_model_issues": [
-            {
-                "element_type": "Class|Relationship|Attribute|Method",
-                "element_name": "element name",
-                "issue_type": "Missing|Incomplete|Inconsistent",
-                "severity": "MUST FIX|SHOULD FIX|SUGGESTION",
-                "description": "issue description",
-                "suggested_fix": "suggested fix",
-                "affected_requirements": ["R1"]
-            }
-        ],
-        "requirement_completeness": [
-            {
-                "requirement_id": "R1",
-                "requirement_text": "text",
-                "completeness_score": 0-100,
-                "missing_elements": ["actor", "outcome", etc.],
-                "suggested_improvement": "Suggested improved text",
-                "rationale": "Why this improvement is needed"
-            }
-        ]
-    },
-    "reasoning": "Explanation of how you combined the analyses and resolved conflicts"
-}
+    IMPORTANT: Your response MUST be valid JSON with the exact structure shown below.
+    The requirement_completeness section will be handled separately, so you can leave it as an empty array.
+    Do not include any explanatory text outside the JSON.
 
-SOURCE ANALYSES:
-"""
-            
+    {
+        "analysis": {
+            "requirement_issues": [
+                {
+                    "requirement_id": "R1",
+                    "requirement_text": "text",
+                    "issues": [
+                        {
+                            "issue_type": "Incomplete|Missing|Conflict|Inconsistency",
+                            "severity": "MUST FIX|SHOULD FIX|SUGGESTION",
+                            "description": "issue description",
+                            "suggested_fix": "suggested fix",
+                            "affected_model_elements": ["Class1", "Relationship2"]
+                        }
+                    ]
+                }
+            ],
+            "missing_requirements": [
+                {
+                    "id": "MR1",
+                    "description": "Description of what's missing",
+                    "category": "Category",
+                    "severity": "CRITICAL|HIGH|MEDIUM|LOW",
+                    "suggested_requirement": "Suggested text for the requirement",
+                    "affected_model_elements": ["Class1", "Relationship2"],
+                    "rationale": "Why this requirement should exist"
+                }
+            ],
+            "domain_model_issues": [
+                {
+                    "element_type": "Class|Relationship|Attribute|Method",
+                    "element_name": "element name",
+                    "issue_type": "Missing|Incomplete|Inconsistent",
+                    "severity": "MUST FIX|SHOULD FIX|SUGGESTION",
+                    "description": "issue description",
+                    "suggested_fix": "suggested fix",
+                    "affected_requirements": ["R1"]
+                }
+            ],
+            "requirement_completeness": []
+        },
+        "reasoning": "Your detailed explanation of the analysis"
+    }
+
+    SOURCE ANALYSES:
+    """
+                
             # Add each source analysis
-            for i, ar in enumerate(analysis_results):
+            for i, ar in enumerate(simplified_results):
                 analysis_json = json.dumps(ar["analysis"], indent=2)
                 prompt += f"\n\nANALYSIS {i+1} (from {ar['model_id']}):\n{analysis_json}\n"
             
             # Create the messages for the LLM
             messages = [
-                {"role": "system", "content": "You are an expert requirements analyst specializing in requirements engineering."},
+                {"role": "system", "content": "You are an expert requirements analyst. Your task is to combine multiple analyses, preserving all unique insights while removing duplicates. Always respond with valid JSON only."},
                 {"role": "user", "content": prompt}
             ]
             
@@ -1567,19 +1479,29 @@ SOURCE ANALYSES:
             
             # Extract and validate the JSON
             result_json = response["content"]
-            logger.debug(f"Meta-model response content sample: {result_json[:200]}...")
+            logger.debug(f"Meta-model analysis response content sample: {result_json[:200]}...")
             
+            # Save raw response for debugging
+            with open(f"log/meta_model_analysis_raw_response_{meta_model_id}.txt", "w", encoding="utf-8") as f:
+                f.write(result_json)
+            
+            # Use enhanced JSON extraction
             result = extract_json_from_response(result_json)
             if not result:
-                logger.error("Failed to extract valid JSON from meta-model response")
-                # Fall back to majority vote
-                return self._majority_vote_analysis(analysis_results, original_results)
+                logger.error("Failed to extract valid JSON from meta-model analysis response")
+                logger.warning(f"Falling back to improved aggregation due to JSON parsing issues with {meta_model_id}")
+                
+                # Use our improved aggregation instead of majority vote
+                return self._improved_analysis(analysis_results, original_results)
             
             # Ensure analysis key exists
             if "analysis" not in result:
                 logger.error("Meta-model response missing analysis key")
-                # Fall back to majority vote
-                return self._majority_vote_analysis(analysis_results, original_results)
+                logger.warning(f"Falling back to improved aggregation because {meta_model_id} response lacks analysis")
+                return self._improved_analysis(analysis_results, original_results)
+            
+            # Now add back the complete requirement completeness data
+            result["analysis"]["requirement_completeness"] = all_completeness
             
             # Add aggregation info
             result["aggregation_info"] = {
@@ -1590,11 +1512,211 @@ SOURCE ANALYSES:
             }
             
             return result
-            
+                
         except Exception as e:
             logger.error(f"Error in LLM-based analysis aggregation: {str(e)}")
             logger.error(traceback.format_exc())
             
-            # Fall back to majority vote
-            logger.info("Falling back to majority vote due to LLM aggregation error")
-            return self._majority_vote_analysis(analysis_results, original_results)
+            # Use improved aggregation instead of majority vote
+            logger.warning(f"Falling back to improved aggregation due to error with {meta_model_id}: {str(e)}")
+            return self._improved_analysis(analysis_results, original_results)
+            
+            
+    def _merge_all_requirement_completeness(self, analysis_results):
+        """
+        Special method to extract and merge ALL requirement completeness analyses
+        This ensures no requirement is lost in the aggregation process
+        
+        Args:
+            analysis_results (list): List of analysis results from different LLMs
+            
+        Returns:
+            list: Complete list of requirement completeness analyses
+        """
+        # Extract all requirement completeness items from all models
+        all_completeness = {}
+        
+        for result in analysis_results:
+            if "analysis" in result and "requirement_completeness" in result["analysis"]:
+                model_id = result.get("model_id", "unknown")
+                
+                for item in result["analysis"].get("requirement_completeness", []):
+                    req_id = item.get("requirement_id", "")
+                    if not req_id:
+                        # Generate a synthetic ID if none exists
+                        req_text = item.get("requirement_text", "")
+                        if req_text:
+                            # Create a hash-based ID for identification
+                            req_id = f"REQ-{hash(req_text) % 10000:04d}"
+                            item["requirement_id"] = req_id
+                        else:
+                            continue  # Skip items with no ID and no text
+                    
+                    # Add source model tracking
+                    item["source_model"] = model_id
+                    
+                    if req_id not in all_completeness:
+                        all_completeness[req_id] = item
+                    else:
+                        # If multiple models analyzed the same requirement
+                        existing_item = all_completeness[req_id]
+                        
+                        # Merge details, keeping the most critical information
+                        # 1. Take the lowest completeness score
+                        current_score = existing_item.get("completeness_score", 100)
+                        new_score = item.get("completeness_score", 100)
+                        if new_score < current_score:
+                            existing_item["completeness_score"] = new_score
+                            
+                            # Update the source to reflect it's from multiple models
+                            if "source_models" not in existing_item:
+                                existing_item["source_models"] = [existing_item.get("source_model", "unknown")]
+                            existing_item["source_models"].append(item.get("source_model", "unknown"))
+                            if "source_model" in existing_item:
+                                del existing_item["source_model"]
+                        
+                        # 2. Combine missing elements from both analyses
+                        existing_missing = set(existing_item.get("missing_elements", []))
+                        new_missing = set(item.get("missing_elements", []))
+                        existing_item["missing_elements"] = list(existing_missing.union(new_missing))
+                        
+                        # 3. Take the more detailed rationale or suggested improvement
+                        if len(item.get("rationale", "")) > len(existing_item.get("rationale", "")):
+                            existing_item["rationale"] = item.get("rationale", "")
+                            
+                        if len(item.get("suggested_improvement", "")) > len(existing_item.get("suggested_improvement", "")):
+                            existing_item["suggested_improvement"] = item.get("suggested_improvement", "")
+        
+        # Return all values as a list, sorted by requirement_id for consistency
+        return sorted(all_completeness.values(), key=lambda x: x.get("requirement_id", ""))
+
+    def _improved_analysis(self, analysis_results, original_results):
+        """
+        Enhanced aggregation method that preserves unique insights from all models
+        with specific focus on preserving ALL requirement completeness analyses
+        """
+        logger.info("Using improved aggregation method to preserve unique insights")
+        
+        # Initialize consolidated results
+        consolidated_analysis = {
+            "requirement_issues": [],
+            "missing_requirements": [],
+            "domain_model_issues": [],
+            "requirement_completeness": []
+        }
+        
+        # Process missing requirements - gather all unique ones
+        all_missing_reqs = []
+        for result in analysis_results:
+            if "analysis" in result and "missing_requirements" in result["analysis"]:
+                model_id = result.get("model_id", "unknown")
+                for req in result["analysis"]["missing_requirements"]:
+                    # Add source tracking
+                    req["source_model"] = model_id
+                    all_missing_reqs.append(req)
+        
+        # Group similar requirements to avoid duplication
+        grouped_reqs = self._group_similar_missing_requirements(all_missing_reqs)
+        final_missing_reqs = []
+        
+        # Select the best requirement from each group
+        for i, group in enumerate(grouped_reqs):
+            best_req = self._select_best_requirement(group)
+            best_req["id"] = f"MR{i+1}"
+            final_missing_reqs.append(best_req)
+            
+        # Sort by severity
+        severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+        final_missing_reqs.sort(key=lambda x: severity_order.get(x.get("severity", "").upper(), 4))
+        
+        consolidated_analysis["missing_requirements"] = final_missing_reqs
+        
+        # Similar handling for requirement issues
+        req_issues_map = {}
+        for result in analysis_results:
+            if "analysis" in result and "requirement_issues" in result["analysis"]:
+                for issue in result["analysis"]["requirement_issues"]:
+                    req_id = issue.get("requirement_id", "")
+                    if req_id:
+                        if req_id not in req_issues_map:
+                            req_issues_map[req_id] = issue
+                        else:
+                            # Merge issues for the same requirement
+                            existing = req_issues_map[req_id].get("issues", [])
+                            new = issue.get("issues", [])
+                            combined = existing[:]
+                            
+                            # Add any new issues not already present
+                            for new_issue in new:
+                                if not any(self._is_similar_issue(new_issue, existing_issue) 
+                                        for existing_issue in existing):
+                                    combined.append(new_issue)
+                            
+                            req_issues_map[req_id]["issues"] = combined
+        
+        consolidated_analysis["requirement_issues"] = list(req_issues_map.values())
+        
+        # Domain model issues
+        model_issues_map = {}
+        for result in analysis_results:
+            if "analysis" in result and "domain_model_issues" in result["analysis"]:
+                for issue in result["analysis"]["domain_model_issues"]:
+                    element = issue.get("element_name", "")
+                    issue_type = issue.get("issue_type", "")
+                    if element and issue_type:
+                        key = f"{element}:{issue_type}"
+                        if key not in model_issues_map:
+                            model_issues_map[key] = issue
+                        elif len(issue.get("description", "")) > len(model_issues_map[key].get("description", "")):
+                            # Keep the most detailed description
+                            model_issues_map[key] = issue
+        
+        consolidated_analysis["domain_model_issues"] = list(model_issues_map.values())
+        
+        # IMPROVED: Use the dedicated method for completeness preservation
+        consolidated_analysis["requirement_completeness"] = self._merge_all_requirement_completeness(analysis_results)
+        
+        return {
+            "analysis": consolidated_analysis,
+            "reasoning": "Analysis combined using improved aggregation method to preserve unique insights from all models",
+            "aggregation_info": {
+                "strategy": "improved_aggregation",
+                "model_count": len(analysis_results),
+                "contributing_models": [ar["model_id"] for ar in analysis_results]
+            }
+        }
+    
+    def _text_similarity(self, text1, text2):
+        """
+        Calculate similarity between two texts (simple version)
+        Returns a value between 0 (completely different) and 1 (identical)
+        """
+        # Simple Jaccard similarity
+        words1 = set(text1.split())
+        words2 = set(text2.split())
+        
+        # Handle empty sets
+        if not words1 or not words2:
+            return 0.0
+        
+        intersection = len(words1.intersection(words2))
+        union = len(words1.union(words2))
+        
+        return intersection / union if union > 0 else 0.0
+    
+    def aggregate_extraction_results(self, model_results):
+        """
+        Aggregate general extraction results (for extract_context_from_srs)
+        """
+        # Simple approach - take the most detailed result
+        if not model_results:
+            return {}
+            
+        if len(model_results) == 1:
+            return model_results[0]
+            
+        # Find the result with the most content
+        most_detailed = max(model_results, 
+                          key=lambda x: sum(len(str(v)) for v in x.values() if isinstance(v, (str, list, dict))))
+        
+        return most_detailed

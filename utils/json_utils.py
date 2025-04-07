@@ -6,8 +6,7 @@ logger = logging.getLogger(__name__)
 
 def extract_json_from_response(response_text):
     """
-    Extract JSON from a response that might contain markdown code blocks
-    or other text surrounding the JSON content.
+    Enhanced version that can handle control characters and other problematic JSON issues
     
     Args:
         response_text (str): The text response that contains JSON
@@ -16,27 +15,55 @@ def extract_json_from_response(response_text):
         dict: Parsed JSON as a dictionary, or None if parsing failed
     """
     # First, check if the response is wrapped in markdown code blocks
-    json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+    json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_text, re.DOTALL)
     if json_match:
         response_text = json_match.group(1)
         logger.debug("Extracted JSON from markdown code block")
     
-    # Try to parse the JSON
+    # Try to parse the JSON directly
     try:
         return json.loads(response_text)
     except json.JSONDecodeError as e:
-        logger.warning(f"JSON decode error: {str(e)}")
+        logger.warning(f"Initial JSON decode error: {str(e)}")
         
-        # Try more aggressively to extract any JSON-like structure 
-        possible_json = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if possible_json:
+        # Clean the response - handle control characters
+        cleaned_text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', response_text)
+        
+        try:
+            return json.loads(cleaned_text)
+        except json.JSONDecodeError:
+            logger.warning("JSON decode error after removing control characters")
+            
+            # Try more aggressively to extract any JSON-like structure
+            possible_json = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
+            if possible_json:
+                try:
+                    extracted_json = possible_json.group(0)
+                    
+                    # Fix common issues in JSON
+                    extracted_json = re.sub(r',\s*}', '}', extracted_json)  # Remove trailing commas
+                    extracted_json = re.sub(r',\s*]', ']', extracted_json)  # Remove trailing commas in arrays
+                    
+                    # Fix unquoted keys
+                    extracted_json = re.sub(r'(\w+)(:)', r'"\1"\2', extracted_json)
+                    
+                    # Try to parse the cleaned JSON
+                    result = json.loads(extracted_json)
+                    logger.info("Successfully extracted JSON using regex and cleaning")
+                    return result
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse extracted JSON-like content: {str(e)}")
+            
+            # Try a more drastic approach - use a third-party library if available
             try:
-                extracted_json = possible_json.group(0)
-                result = json.loads(extracted_json)
-                logger.info("Successfully extracted JSON using regex")
+                import demjson
+                result = demjson.decode(cleaned_text)
+                logger.info("Successfully parsed JSON using demjson library")
                 return result
-            except json.JSONDecodeError:
-                logger.error("Failed to parse extracted JSON-like content")
+            except ImportError:
+                logger.warning("demjson library not available for fallback JSON parsing")
+            except Exception as e:
+                logger.error(f"demjson parsing failed: {str(e)}")
         
         logger.error("Could not extract valid JSON from response")
         return None

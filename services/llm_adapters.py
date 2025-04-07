@@ -83,7 +83,7 @@ class OpenAIAdapter(LLMAdapterBase):
                     model=self.model_name,
                     messages=messages,
                     # temperature=temperature
-                    reasoning_effort="medium"
+                    reasoning_effort="high"
                 )
                 
                 if not response.choices or not response.choices[0].message:

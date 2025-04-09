@@ -101,8 +101,81 @@ class DomainModelAnalyzer:
         
         # Aggregate results
         aggregator = ResultsAggregator(meta_model_id or "majority", model_weights)
-        return aggregator.aggregate_extracted_requirements(model_results)
+        return aggregator.aggregate_extraction_results(model_results)
 
+    def _extract_context_with_model(self, model_id, messages):
+        """
+        Extract context information using a specific LLM
+        
+        Args:
+            model_id (str): ID of the model to use
+            messages (list): Messages to send to the LLM
+        
+        Returns:
+            dict: Extracted context and metadata
+        """
+        logger.info(f"Extracting context with {model_id}")
+        
+        # Get the adapter for this model
+        adapter = get_adapter(model_id)
+        
+        # Try with retries
+        for attempt in range(self.max_retries):
+            try:
+                logger.info(f"Calling {model_id} API for context extraction (attempt {attempt+1}/{self.max_retries})")
+                
+                # Generate response
+                response = adapter.generate_response(messages)
+                
+                # Extract the response content
+                extracted_text = response["content"]
+                if not extracted_text:
+                    raise ValueError("Empty response content")
+                
+                logger.debug(f"Extracted context length: {len(extracted_text)}")
+                logger.debug(f"Extracted context sample: {extracted_text[:500]}...")
+                
+                # Try to extract JSON from the response
+                try:
+                    context_data = extract_json_from_response(extracted_text)
+                    if not context_data:
+                        raise ValueError("Failed to extract valid JSON from context extraction")
+                    
+                    # Add model ID
+                    context_data["model_id"] = model_id
+                    
+                    return context_data
+                except Exception as json_error:
+                    logger.warning(f"Error extracting JSON from context extraction response: {str(json_error)}")
+                    # Fall back to returning the raw text if we can't parse JSON
+                    return {
+                        "model_id": model_id,
+                        "raw_context": extracted_text,
+                        "json_error": str(json_error)
+                    }
+                    
+            except Exception as e:
+                logger.error(f"{model_id} API request error for context extraction (attempt {attempt+1}): {str(e)}")
+                logger.error(traceback.format_exc())
+                
+                # If not the last attempt, retry
+                if attempt < self.max_retries - 1:
+                    logger.info(f"Retrying after error (waiting {self.retry_delay} seconds)")
+                    time.sleep(self.retry_delay)
+                    continue
+        
+        # If all attempts failed, return an empty result
+        logger.error(f"All {model_id} API attempts failed for context extraction")
+        return {
+            "model_id": model_id,
+            "system_overview": "",
+            "stakeholders": [],
+            "terminology": {},
+            "assumptions": [],
+            "external_systems": [],
+            "business_rules": [],
+            "error": f"All {model_id} API attempts failed"
+        }
     def _extract_requirements_with_model(self, model_id, messages):
         """
         Extract requirements using a specific LLM
@@ -1149,6 +1222,8 @@ class DomainModelAnalyzer:
                     return {"model_id": model_id, "domain_model": self._update_domain_model_with_model(model_id, messages, default_result.get("domain_model", {}))}
                 elif operation_type == "extract_requirements":
                     return self._extract_requirements_with_model(model_id, messages)
+                elif operation_type == "extract_context":
+                    return self._extract_context_with_model(model_id, messages)
                 else:
                     logger.error(f"Unknown operation type: {operation_type}")
                     return {"error": f"Unknown operation type: {operation_type}"}

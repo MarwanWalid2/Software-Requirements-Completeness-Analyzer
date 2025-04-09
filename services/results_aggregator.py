@@ -1707,16 +1707,133 @@ SOURCE DOMAIN MODELS:
     def aggregate_extraction_results(self, model_results):
         """
         Aggregate general extraction results (for extract_context_from_srs)
+        with support for meta-model based aggregation
         """
-        # Simple approach - take the most detailed result
+        logger.info(f"Aggregating extraction results using {self.meta_model_id} strategy")
+        
         if not model_results:
+            logger.error("No extraction results to aggregate")
             return {}
             
         if len(model_results) == 1:
+            logger.info("Only one extraction result, no aggregation needed")
             return model_results[0]
-            
-        # Find the result with the most content
-        most_detailed = max(model_results, 
-                          key=lambda x: sum(len(str(v)) for v in x.values() if isinstance(v, (str, list, dict))))
         
-        return most_detailed
+        # Use the appropriate aggregation strategy based on meta-model ID
+        normalized_meta_id = self._normalize_meta_model_id(self.meta_model_id)
+        
+        if normalized_meta_id in ["openai", "deepseek", "claude"]:
+            return self._llm_based_extraction_aggregation(model_results, normalized_meta_id)
+        else:
+            # For majority/weighted/improved strategies
+            # Choose the most detailed extraction result
+            logger.info(f"Using heuristic approach for {normalized_meta_id} strategy")
+            most_detailed = max(model_results, 
+                            key=lambda x: sum(len(str(v)) for v in x.values() if isinstance(v, (str, list, dict))))
+            
+            # Add aggregation info
+            if "aggregation_info" not in most_detailed:
+                most_detailed["aggregation_info"] = {
+                    "strategy": "most_detailed",
+                    "model_count": len(model_results),
+                    "selected_model": most_detailed.get("model_id", "unknown")
+                }
+            
+            return most_detailed
+
+    def _llm_based_extraction_aggregation(self, model_results, meta_model_id):
+        """
+        Use an LLM to aggregate extraction results from multiple sources
+        
+        Args:
+            model_results (list): List of extraction results from different LLMs
+            meta_model_id (str): ID of the LLM to use for aggregation
+        
+        Returns:
+            dict: Aggregated extraction results
+        """
+        logger.info(f"Using {meta_model_id} LLM to aggregate extraction results")
+        
+        try:
+            # Get model IDs for reference
+            model_ids = []
+            for result in model_results:
+                model_id = result.get("model_id", "unknown")
+                if model_id not in model_ids:
+                    model_ids.append(model_id)
+            
+            # Prepare the prompt for the LLM
+            prompt = """You are a senior requirements analyst tasked with creating a consensus extraction from multiple sources.
+
+    Analyze the provided extraction results from different LLMs and create a single, comprehensive result that:
+    1. Preserves all unique insights from each source
+    2. Resolves any conflicts or contradictions
+    3. Combines the best elements of each extraction
+    4. Creates a complete and consistent view of the extracted information
+
+    IMPORTANT: Your response MUST be valid JSON with the exact same structure as the input extractions.
+    Do not include any explanatory text outside the JSON. Maintain all key names and data types.
+
+    SOURCE EXTRACTIONS:
+    """
+            
+            # Add each source extraction
+            for i, result in enumerate(model_results):
+                # Remove model_id if present to avoid bias
+                clean_result = result.copy()
+                clean_result.pop("model_id", None)
+                clean_result.pop("aggregation_info", None)
+                
+                extraction_json = json.dumps(clean_result, indent=2)
+                prompt += f"\n\nEXTRACTION {i+1} (from {model_ids[i] if i < len(model_ids) else 'unknown'}):\n{extraction_json}\n"
+            
+            # Create the messages for the LLM
+            messages = [
+                {"role": "system", "content": "You are an expert requirements analyst. Always respond with valid JSON only."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            # Get the LLM adapter
+            adapter = get_adapter(meta_model_id)
+            
+            # Generate the response
+            response = adapter.generate_response(messages)
+            
+            # Extract and validate the JSON
+            result_json = response["content"]
+            logger.debug(f"Meta-model extraction response content sample: {result_json[:200]}...")
+            
+            # Save raw response for debugging
+            with open(f"log/meta_model_extraction_raw_response_{meta_model_id}.txt", "w", encoding="utf-8") as f:
+                f.write(result_json)
+            
+            # Use enhanced JSON extraction
+            result = extract_json_from_response(result_json)
+            if not result:
+                logger.error("Failed to extract valid JSON from meta-model extraction response")
+                logger.warning(f"Falling back to heuristic aggregation due to JSON parsing issues with {meta_model_id}")
+                
+                # Fall back to heuristic approach
+                most_detailed = max(model_results, 
+                                key=lambda x: sum(len(str(v)) for v in x.values() if isinstance(v, (str, list, dict))))
+                return most_detailed
+            
+            # Add aggregation info
+            result["aggregation_info"] = {
+                "strategy": f"llm_based_{meta_model_id}",
+                "model_count": len(model_results),
+                "contributing_models": model_ids,
+                "meta_model_id": meta_model_id
+            }
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in LLM-based extraction aggregation: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+            # Fall back to heuristic approach
+            logger.warning(f"Falling back to heuristic aggregation due to error with {meta_model_id}: {str(e)}")
+            most_detailed = max(model_results, 
+                            key=lambda x: sum(len(str(v)) for v in x.values() if isinstance(v, (str, list, dict))))
+            return most_detailed

@@ -508,11 +508,6 @@ def upload_srs_file():
                 logger.error("python-docx library not installed")
                 return jsonify({"error": "Cannot process DOCX files. The python-docx library is not installed."}), 500
         
-        elif file_extension in ['.doc']:
-            # For .doc files, you'd need something like textract or antiword
-            logger.error("DOC file processing not implemented")
-            return jsonify({"error": "DOC files are not supported yet. Please convert to DOCX or TXT."}), 400
-        
         elif file_extension in ['.pdf']:
             # PDF files using pypdf
             logger.info("Processing as PDF file")

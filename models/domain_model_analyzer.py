@@ -501,19 +501,22 @@ class DomainModelAnalyzer:
         
         # Create a clear, general prompt for the LLM
         prompt = """
-        You are an expert requirements analyst. Your task is to identify SPECIFIC MISSING REQUIREMENTS by analyzing the provided domain model and requirements, CONSIDER THE REQUIREMENTS AS A WHOLE SET, NOT EACH REQUIREMENT INDVIDUALLY, LEVERAGE TEH DOMAIN MODEL AND ITS ENTITIES AND RELATIONSHIPS.
+        You are an expert requirements analyst. Your task is to identify SPECIFIC MISSING REQUIREMENTS by analyzing the provided domain model and requirements, CONSIDER THE REQUIREMENTS AS A WHOLE SET, NOT EACH REQUIREMENT INDVIDUALLY, LEVERAGE THE DOMAIN MODEL AND ITS ENTITIES AND RELATIONSHIPS. DO NOT LIMIT YOURSELF TO JUST GAPS IN DOMAIN MODEL, BUT YOU ALSO NEED TO FIND SPECIFIC MISSING REQUIREMENTS IN THE REQUIREMENTS TEXT SPECIFICALLY FOR THIS SYSTEM
 
         ## INSTRUCTIONS
         1. Compare the domain model with the requirements and identify requirements that should exist but are missing
         2. Look for missing requirements related to classes, attributes, relationships, and operations in the domain model
         3. Consider industry best practices and common requirements for this type of system
         4. Focus on specific, concrete missing requirements - not just categories of missing requirements
-        5. MAKE SURE YOU ARE CONSIDRIING THE WHOLE SET AND THE WHOLE DOMAIN WHEN DOING YOUR ANALYSIS
+        5. MAKE SURE YOU ARE CONSIDERING THE WHOLE SET AND THE WHOLE DOMAIN WHEN DOING YOUR ANALYSIS
         6. Ensure there are requirements covering the essential behavior and properties of each major element in the `DOMAIN MODEL`. Look for missing CRUD operations (if applicable), state transitions, handling of key attributes, or initialization/termination logic.
-        7. Ensure there are requirments covering teh entities in the domain model.
+        7. Ensure there are requirements covering the entities in the domain model.
         8. Explicitly check for missing NFRs crucial for this type of system. This includes performance, security, usability, scalability, and maintainability aspects that should be defined but are not present in the current requirements.
         9. Explicitly check for functional requirements that are not covered by the existing requirements. This includes checking for missing use cases, scenarios, or specific behaviors that should be defined.
         10. Use the `SYSTEM CONTEXT` (if provided - e.g., stakeholders, business rules, external systems) to identify missing requirements. If a missing requirement stems directly from a specific stakeholder need or business rule mentioned there, explain this linkage clearly in the 'rationale'.
+        11. AGAIN FOCUS ON THE SET AS A WHOLE, THIS SYSTEM IS UNIQUE SO YOU NEED TO MAKE SURE YOU THINK AS SPECIFICALLY AS POSSIBLE ABOUT THIS SYSTEM AND ITS DOMAIN MODEL AND REQUIREMENTS AS A WHOLE.
+        12. ANOTHER ANALYSIS WOULD BE THINKINING AS BROADLY AS POSSIBLE TO TRY TO CAPTURE WHAT DID THIS SET OF REQUIREMENTS FORGET IN THIS SYSTEM DOMAIN.
+        13. IF AN ENTITY OR AN ATTRIBUTE WERE MENTIONED, CHECK IF IT WAS OR WASN'T MENTIONED ELSE WHERE (AGAIN THE SET AS A WHOLE). for example: if we mention 4 attributes for user and how we display them, then later we mention 5 attributes but how we delete them, that means there was a missing requirement for the 5th attribute at the beginning of the set.
         ## OUTPUT FORMAT
         Provide a JSON response with the following structure:
         {

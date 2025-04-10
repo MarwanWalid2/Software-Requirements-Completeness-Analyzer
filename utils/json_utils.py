@@ -54,7 +54,6 @@ def extract_json_from_response(response_text):
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse extracted JSON-like content: {str(e)}")
             
-            # Try a more drastic approach - use a third-party library if available
             try:
                 import demjson
                 result = demjson.decode(cleaned_text)

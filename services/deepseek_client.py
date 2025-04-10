@@ -12,7 +12,7 @@ def initialize_deepseek_client():
     client = openai.OpenAI(
         api_key=api_key,
         base_url="https://api.deepseek.com",
-        timeout=200.0
+        timeout=400.0
     )
     
     logger.info("OpenAI client initialized with DeepSeek base URL")

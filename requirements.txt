@@ -5,3 +5,6 @@ openai
 python-dotenv
 requests
 anthropic
+werkzeug
+docx
+pypdf

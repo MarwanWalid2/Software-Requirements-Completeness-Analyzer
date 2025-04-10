@@ -11,7 +11,7 @@ def initialize_openai_client():
     # Initialize OpenAI client with explicit API key
     client = openai.OpenAI(
         api_key=api_key,
-        timeout=200.0
+        timeout=400.0
     )
     
     logger.info("OpenAI client initialized")

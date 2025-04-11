@@ -6,22 +6,30 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-# Load environment variables from .env file
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  
 
 def configure_app(app):
     """Configure Flask application with necessary settings"""
     # Set secret key for session security
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_key_' + str(uuid.uuid4()))
     
-    # Configure session handling
+    # This filesystem session configuration will work on Heroku
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['SESSION_FILE_DIR'] = tempfile.gettempdir()
     
+    # Set Flask to production mode on Heroku
+    if os.environ.get('FLASK_CONFIG') == 'production':
+        app.config['DEBUG'] = False
+        app.config['TESTING'] = False
+    
     logger.info("Application configured with session type: %s", app.config['SESSION_TYPE'])
-    logger.debug("Session directory: %s", app.config['SESSION_FILE_DIR'])
     
     return app
+
 
 def get_deepseek_api_key():
     """Get the DeepSeek API key from environment variables or .env file"""

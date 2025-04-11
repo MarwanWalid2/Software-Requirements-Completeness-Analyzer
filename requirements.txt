@@ -8,3 +8,5 @@ anthropic
 werkzeug
 docx
 pypdf
+dotenv
+gunicorn

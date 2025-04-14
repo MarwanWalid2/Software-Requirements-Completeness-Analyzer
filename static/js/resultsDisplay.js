@@ -80,9 +80,13 @@ class ResultsDisplay {
         if (!this.currentAnalysis) return;
         
         // Count missing requirements
-        this.statistics.missingRequirements.total = 
-            this.currentAnalysis.missing_requirements ? 
-            this.currentAnalysis.missing_requirements.length : 0;
+        let incompleteReqCount = 0;
+        if (this.currentAnalysis.requirement_completeness) {
+            incompleteReqCount = this.currentAnalysis.requirement_completeness.filter(
+                req => req.completeness_score <= 99
+            ).length;
+        }
+        this.statistics.requirementCompleteness.total = incompleteReqCount;
         
         // Count requirement issues
         let reqIssueCount = 0;

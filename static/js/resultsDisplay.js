@@ -28,6 +28,13 @@ class ResultsDisplay {
         this.acceptedChanges = [];
         this.editedRequirements = [];
         this.processedItems = new Set();
+
+        this.statistics = {
+            missingRequirements: { total: 0, accepted: 0 },
+            requirementIssues: { total: 0, accepted: 0 },
+            modelIssues: { total: 0, accepted: 0 },
+            requirementCompleteness: { total: 0, accepted: 0 },
+        };
         
         // Modal elements
         this.editModal = new bootstrap.Modal(document.getElementById('editModal'));
@@ -51,7 +58,131 @@ class ResultsDisplay {
         // Set up save edit handler
         this.saveEditBtn.addEventListener('click', () => this.handleSaveEdit());
     }
-    
+
+    /**
+     * Initialize statistics tracking
+     */
+    initializeStatistics() {
+        // Reset all counters
+        this.statistics = {
+            missingRequirements: { total: 0, accepted: 0 },
+            requirementIssues: { total: 0, accepted: 0 },
+            modelIssues: { total: 0, accepted: 0 },
+            requirementCompleteness: { total: 0, accepted: 0 },
+        };
+    }
+
+
+    /**
+     * Calculate statistics based on current analysis data
+     */
+    calculateStatistics() {
+        if (!this.currentAnalysis) return;
+        
+        // Count missing requirements
+        this.statistics.missingRequirements.total = 
+            this.currentAnalysis.missing_requirements ? 
+            this.currentAnalysis.missing_requirements.length : 0;
+        
+        // Count requirement issues
+        let reqIssueCount = 0;
+        if (this.currentAnalysis.requirement_issues) {
+            this.currentAnalysis.requirement_issues.forEach(req => {
+                if (req.issues) {
+                    reqIssueCount += req.issues.length;
+                }
+            });
+        }
+        this.statistics.requirementIssues.total = reqIssueCount;
+        
+        // Count model issues
+        this.statistics.modelIssues.total = 
+            this.currentAnalysis.domain_model_issues ? 
+            this.currentAnalysis.domain_model_issues.length : 0;
+        
+        // Count requirement completeness
+        this.statistics.requirementCompleteness.total = 
+            this.currentAnalysis.requirement_completeness ? 
+            this.currentAnalysis.requirement_completeness.length : 0;
+        
+        // Reset accepted counters
+        this.statistics.missingRequirements.accepted = 0;
+        this.statistics.requirementIssues.accepted = 0;
+        this.statistics.modelIssues.accepted = 0;
+        this.statistics.requirementCompleteness.accepted = 0;
+        
+        // Count from accepted changes
+        this.acceptedChanges.forEach(change => {
+            switch (change.type) {
+                case 'missing_requirement':
+                    this.statistics.missingRequirements.accepted++;
+                    break;
+                case 'requirement_issue_fix':
+                    this.statistics.requirementIssues.accepted++;
+                    break;
+                case 'model_issue_fix':
+                    this.statistics.modelIssues.accepted++;
+                    break;
+                case 'requirement_improvement':
+                    this.statistics.requirementCompleteness.accepted++;
+                    break;
+            }
+        });
+        
+        // Update the UI with the new statistics
+        this.updateStatisticsUI();
+    }
+
+    /**
+     * Update the statistics UI elements
+     */
+    updateStatisticsUI() {
+        // Missing requirements
+        document.getElementById('total-missing').textContent = this.statistics.missingRequirements.total;
+        document.getElementById('accepted-missing').textContent = this.statistics.missingRequirements.accepted;
+        const missingProgress = this.statistics.missingRequirements.total > 0 ? 
+            (this.statistics.missingRequirements.accepted / this.statistics.missingRequirements.total * 100) : 0;
+        document.getElementById('missing-progress').style.width = `${missingProgress}%`;
+        
+        // Requirement issues
+        document.getElementById('total-req-issues').textContent = this.statistics.requirementIssues.total;
+        document.getElementById('accepted-req-issues').textContent = this.statistics.requirementIssues.accepted;
+        const reqIssuesProgress = this.statistics.requirementIssues.total > 0 ? 
+            (this.statistics.requirementIssues.accepted / this.statistics.requirementIssues.total * 100) : 0;
+        document.getElementById('req-issues-progress').style.width = `${reqIssuesProgress}%`;
+        
+        // Model issues
+        document.getElementById('total-model-issues').textContent = this.statistics.modelIssues.total;
+        document.getElementById('accepted-model-issues').textContent = this.statistics.modelIssues.accepted;
+        const modelIssuesProgress = this.statistics.modelIssues.total > 0 ? 
+            (this.statistics.modelIssues.accepted / this.statistics.modelIssues.total * 100) : 0;
+        document.getElementById('model-issues-progress').style.width = `${modelIssuesProgress}%`;
+        
+        // Requirement completeness
+        document.getElementById('total-completeness').textContent = this.statistics.requirementCompleteness.total;
+        document.getElementById('accepted-completeness').textContent = this.statistics.requirementCompleteness.accepted;
+        const completenessProgress = this.statistics.requirementCompleteness.total > 0 ? 
+            (this.statistics.requirementCompleteness.accepted / this.statistics.requirementCompleteness.total * 100) : 0;
+        document.getElementById('completeness-progress').style.width = `${completenessProgress}%`;
+        
+        // Total statistics
+        const totalIssues = this.statistics.missingRequirements.total + 
+                            this.statistics.requirementIssues.total + 
+                            this.statistics.modelIssues.total + 
+                            this.statistics.requirementCompleteness.total;
+                            
+        const totalAccepted = this.statistics.missingRequirements.accepted + 
+                            this.statistics.requirementIssues.accepted + 
+                            this.statistics.modelIssues.accepted + 
+                            this.statistics.requirementCompleteness.accepted;
+                            
+        document.getElementById('total-issues').textContent = totalIssues;
+        document.getElementById('total-accepted').textContent = totalAccepted;
+        
+        const overallProgress = totalIssues > 0 ? Math.round(totalAccepted / totalIssues * 100) : 0;
+        document.getElementById('overall-progress').textContent = `${overallProgress}%`;
+    }
+        
     /**
      * Initialize tabs navigation
      */
@@ -85,16 +216,25 @@ class ResultsDisplay {
         });
     }
     
-    /**
-     * Display results from analysis
-     */
-   /**
+
+/**
  * Display results from analysis
  */
 displayResults(data) {
     // Store current data
     this.currentDomainModel = data.domain_model;
     this.currentAnalysis = data.analysis;
+    
+    // Reset lists of changes
+    this.acceptedChanges = [];
+    this.editedRequirements = [];
+    this.processedItems.clear();
+    
+    // Initialize statistics
+    this.initializeStatistics();
+    
+    // Show results container
+    this.resultsContainer.style.display = 'flex';
     
     // Reset lists of changes
     this.acceptedChanges = [];
@@ -126,6 +266,9 @@ displayResults(data) {
     
     // Display aggregation info
     this.displayAggregationInfo(data);
+    
+    // Calculate and display statistics
+    this.calculateStatistics();
     
     // Update requirements in the text editor if they're provided
     if (data.requirements && this.requirementsEditor) {
@@ -1036,6 +1179,8 @@ updateRequirementsEditor(requirements) {
         
         // Update changes count and show update button
         this.updateChangesCount();
+        // Update statistics
+        this.calculateStatistics();
     }
     
     /**
@@ -1123,6 +1268,9 @@ updateRequirementsEditor(requirements) {
         
         // Update changes count and show update button
         this.updateChangesCount();
+        // Update statistics
+        this.calculateStatistics();
+
     }
     
     /**
@@ -1210,6 +1358,8 @@ updateRequirementsEditor(requirements) {
         
         // Update changes count and show update button
         this.updateChangesCount();
+        // Update statistics
+        this.calculateStatistics();
     }
     
     /**
@@ -1299,6 +1449,8 @@ updateRequirementsEditor(requirements) {
         
         // Update changes count and show update button
         this.updateChangesCount();
+        // Update statistics
+        this.calculateStatistics();
     }
     
     /**
@@ -1376,6 +1528,8 @@ updateRequirementsEditor(requirements) {
         this.editedRequirements = [];
         this.processedItems.clear();
         this.updateChangesCount();
+        this.initializeStatistics();
+        this.calculateStatistics();
     }
 }
 

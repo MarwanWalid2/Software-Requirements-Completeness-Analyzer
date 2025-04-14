@@ -557,3 +557,33 @@ body {
     color: #6c757d;
     font-size: 0.85rem;
 }
+
+/* Statistics Panel Styles */
+.statistics-panel {
+    margin: 0 15px;
+}
+
+.statistics-panel .progress {
+    height: 10px;
+    border-radius: 5px;
+    background-color: #f0f0f0;
+}
+
+.statistics-panel .stat-item {
+    padding: 5px 0;
+}
+
+.statistics-panel .progress-bar {
+    transition: width 0.6s ease;
+}
+
+.statistics-panel .badge {
+    font-size: 0.9rem;
+    padding: 5px 10px;
+}
+
+@media (max-width: 992px) {
+    .statistics-panel {
+        margin-bottom: 20px;
+    }
+}

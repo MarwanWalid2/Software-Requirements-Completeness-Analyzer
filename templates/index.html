@@ -193,6 +193,67 @@
                     <i class="fas fa-info-circle me-1"></i>
                     <span id="domain-model-aggregation-text"></span>
                 </div>
+                <!-- Statistics Panel -->
+                <div class="statistics-panel mb-3">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <i class="fas fa-chart-bar me-2"></i>Analysis Overview
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span><i class="fas fa-search-plus me-1"></i>Missing Requirements</span>
+                                            <span><span id="accepted-missing">0</span>/<span id="total-missing">0</span></span>
+                                        </div>
+                                        <div class="progress">
+                                            <div id="missing-progress" class="progress-bar bg-warning" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span><i class="fas fa-exclamation-triangle me-1"></i>Requirement Issues</span>
+                                            <span><span id="accepted-req-issues">0</span>/<span id="total-req-issues">0</span></span>
+                                        </div>
+                                        <div class="progress">
+                                            <div id="req-issues-progress" class="progress-bar bg-danger" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span><i class="fas fa-bug me-1"></i>Domain Model Issues</span>
+                                            <span><span id="accepted-model-issues">0</span>/<span id="total-model-issues">0</span></span>
+                                        </div>
+                                        <div class="progress">
+                                            <div id="model-issues-progress" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span><i class="fas fa-check-circle me-1"></i>Incomplete Requirements</span>
+                                            <span><span id="accepted-completeness">0</span>/<span id="total-completeness">0</span></span>
+                                        </div>
+                                        <div class="progress">
+                                            <div id="completeness-progress" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <span class="badge bg-secondary">Total Issues: <span id="total-issues">0</span></span>
+                                <span class="badge bg-success ms-2">Accepted: <span id="total-accepted">0</span></span>
+                                <span class="badge bg-info ms-2">Progress: <span id="overall-progress">0%</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="uml-container">
                     <img id="uml-diagram" alt="UML Diagram">

@@ -8,7 +8,6 @@ def initialize_openai_client():
     """Initialize and return an OpenAI client"""
     api_key = get_openai_api_key()
     
-    # Initialize OpenAI client with explicit API key
     client = openai.OpenAI(
         api_key=api_key,
         timeout=400.0

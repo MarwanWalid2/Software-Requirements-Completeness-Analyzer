@@ -868,9 +868,9 @@ SOURCE DOMAIN MODELS:
             result_json = response["content"]
             logger.debug(f"Meta-model response content sample: {result_json[:200]}...")
             
-            # Save raw response for debugging
-            with open(f"log/meta_model_raw_response_{meta_model_id}.txt", "w", encoding="utf-8") as f:
-                f.write(result_json)
+            # # Save raw response for debugging
+            # with open(f"log/meta_model_raw_response_{meta_model_id}.txt", "w", encoding="utf-8") as f:
+            #     f.write(result_json)
             
             # Use enhanced JSON extraction
             result = extract_json_from_response(result_json)
@@ -1481,9 +1481,9 @@ SOURCE DOMAIN MODELS:
             result_json = response["content"]
             logger.debug(f"Meta-model analysis response content sample: {result_json[:200]}...")
             
-            # Save raw response for debugging
-            with open(f"log/meta_model_analysis_raw_response_{meta_model_id}.txt", "w", encoding="utf-8") as f:
-                f.write(result_json)
+            # # Save raw response for debugging
+            # with open(f"log/meta_model_analysis_raw_response_{meta_model_id}.txt", "w", encoding="utf-8") as f:
+            #     f.write(result_json)
             
             # Use enhanced JSON extraction
             result = extract_json_from_response(result_json)
@@ -1803,9 +1803,9 @@ SOURCE DOMAIN MODELS:
             result_json = response["content"]
             logger.debug(f"Meta-model extraction response content sample: {result_json[:200]}...")
             
-            # Save raw response for debugging
-            with open(f"log/meta_model_extraction_raw_response_{meta_model_id}.txt", "w", encoding="utf-8") as f:
-                f.write(result_json)
+            # # Save raw response for debugging
+            # with open(f"log/meta_model_extraction_raw_response_{meta_model_id}.txt", "w", encoding="utf-8") as f:
+            #     f.write(result_json)
             
             # Use enhanced JSON extraction
             result = extract_json_from_response(result_json)

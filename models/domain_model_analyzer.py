@@ -377,9 +377,9 @@ class DomainModelAnalyzer:
                 except Exception as e:
                     logger.warning(f"Error processing domain model: {str(e)}")
                     
-                    # Save the raw response for debugging
-                    with open(f"log/raw_domain_model_response_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
-                        f.write(domain_model_json)
+                    # # Save the raw response for debugging
+                    # with open(f"log/raw_domain_model_response_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
+                    #     f.write(domain_model_json)
                     
                     # If not the last attempt, try again
                     if attempt < self.max_retries - 1:
@@ -626,9 +626,9 @@ class DomainModelAnalyzer:
                 
                 logger.debug(f"Missing requirements content sample: {result_json[:200]}...")
                 
-                # Save raw response for debugging
-                with open(f"log/raw_missing_requirements_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
-                    f.write(result_json)
+                # # Save raw response for debugging
+                # with open(f"log/raw_missing_requirements_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
+                #     f.write(result_json)
                 
                 # Parse and validate the JSON
                 try:
@@ -792,9 +792,9 @@ class DomainModelAnalyzer:
                 
                 logger.debug(f"Requirement completeness content sample: {result_json[:200]}...")
                 
-                # Save raw response for debugging
-                with open(f"log/raw_requirement_completeness_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
-                    f.write(result_json)
+                # # Save raw response for debugging
+                # with open(f"log/raw_requirement_completeness_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
+                #     f.write(result_json)
                 
                 # Parse and validate the JSON
                 try:
@@ -1020,9 +1020,9 @@ class DomainModelAnalyzer:
                 logger.debug(f"Analysis content length: {len(analysis_json)}")
                 logger.debug(f"Analysis content sample: {analysis_json[:200]}...")
                 
-                # Save raw analysis response for debugging
-                with open(f"log/raw_analysis_response_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
-                    f.write(analysis_json)
+                # # Save raw analysis response for debugging
+                # with open(f"log/raw_analysis_response_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
+                #     f.write(analysis_json)
                 
                 # Attempt to parse and validate the JSON
                 try:

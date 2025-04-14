@@ -3,6 +3,7 @@ import logging
 import requests
 import plantuml
 
+
 logger = logging.getLogger(__name__)
 
 def generate_plantuml_image(plantuml_code):
@@ -18,9 +19,9 @@ def generate_plantuml_image(plantuml_code):
         logger.debug("Adding @enduml tag")
         plantuml_code = plantuml_code + '\n@enduml'
     
-    # Save processed PlantUML code for debugging
-    with open("log\processed_plantuml.txt", "w") as f:
-        f.write(plantuml_code)
+    # # Save processed PlantUML code for debugging
+    # with open("log\processed_plantuml.txt", "w") as f:
+    #     f.write(plantuml_code)
     
     # Try to generate the UML diagram image
     try:

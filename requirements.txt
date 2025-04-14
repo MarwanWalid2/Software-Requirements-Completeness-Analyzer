@@ -10,3 +10,4 @@ docx
 pypdf
 dotenv
 gunicorn
+six

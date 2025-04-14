@@ -19,7 +19,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(os.path.join("log", "app.log")),
+        # logging.FileHandler(os.path.join("log", "app.log")),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -627,4 +627,8 @@ def upload_srs_file():
         }), 500
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    port = int(os.environ.get("PORT", 5000))
+    if os.environ.get('FLASK_CONFIG') == 'production':
+        app.config['DEBUG'] = False
+        app.config['TESTING'] = False
+    app.run(host='0.0.0.0', port=port)

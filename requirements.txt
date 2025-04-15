@@ -11,4 +11,4 @@ pypdf
 dotenv
 gunicorn
 six
-ptyhon-docx
+python-docx

@@ -698,24 +698,46 @@ class DomainModelAnalyzer:
         
         # Create a general prompt
         prompt = """
-        You are an expert requirements analyst. Analyze the completeness of each individual requirement.
-        
-        For each requirement, check if it is complete by ensuring it contains all necessary elements.
-        
-        ## FORMAT YOUR RESPONSE AS JSON
-        {
-            "requirement_completeness": [
+                You are an expert requirements analyst. Analyze the completeness of each individual requirement.
+                
+                For each requirement, check if it is complete by ensuring it contains all necessary elements. Make sure to consider the requirements format first which may be in various formats, including but not limited to:
+                - Scenario: A description of a specific situation or interaction.
+                - Use Case Step: A step within a larger use case description.
+                - "Shall" Statement: A formal requirement statement using the word "shall."
+                - User Story: A short description from the user's perspective ("As a [user], I want [goal] so that [benefit]").
+                - Free-form Text: A general description of desired system behavior.
+                - Other declarative statement: Any other way of expressing a system requirement.
+                
+                Check for the following elements of a software requirement, ONLY IF the values are explicitly stated or can be DIRECTLY and LOGICALLY inferred from the provided requirement statement:
+                - unique identifier: A unique ID for the requirement.
+                - priority: The priority of the requirement (e.g., High, Medium, Low).
+                - rationale: The reason or justification for the requirement.
+                - source: The origin of the requirement (e.g., stakeholder name, document).
+                - status: The current status of the requirement (e.g., Draft, Approved, Implemented).
+                - acceptance criteria: Specific, testable conditions that must be met for the requirement to be considered complete.
+                - dependencies: Other requirements that this requirement depends on.
+                - version: The version number of the requirement.
+                - type: The type of requirement (e.g., Functional, Non-functional, Security).
+                - actor: The person or system that initiates the action or interacts with the system.
+                - action: The action performed by the actor or the system.
+                - object: The thing that the action is performed on.
+                - condition: The circumstances or context under which the action occurs.
+                - quality attributes: Non-functional characteristics of the system related to the requirement (e.g., performance, security, usability).
+                
+                ## FORMAT YOUR RESPONSE AS JSON
                 {
-                    "requirement_id": "ID",
-                    "requirement_text": "text",
-                    "completeness_score": 0-100,
-                    "missing_elements": ["element1", "element2"],
-                    "suggested_improvement": "Suggested improved text",
-                    "rationale": "Why this improvement is needed"
+                    "requirement_completeness": [
+                        {
+                            "requirement_id": "ID",
+                            "requirement_text": "text",
+                            "completeness_score": 0-100,
+                            "missing_elements": ["element1", "element2"],
+                            "suggested_improvement": "Suggested improved text",
+                            "rationale": "Why this improvement is needed"
+                        }
+                    ]
                 }
-            ]
-        }
-        """
+                """
         
         # Add domain model
         prompt += "\n\n## DOMAIN MODEL\n"

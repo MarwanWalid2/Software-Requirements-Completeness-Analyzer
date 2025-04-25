@@ -80,6 +80,11 @@ class ResultsDisplay {
         if (!this.currentAnalysis) return;
         
         // Count missing requirements
+        this.statistics.missingRequirements.total = 
+            this.currentAnalysis.missing_requirements ? 
+            this.currentAnalysis.missing_requirements.length : 0;
+        
+        // Count incomplete requirements
         let incompleteReqCount = 0;
         if (this.currentAnalysis.requirement_completeness) {
             incompleteReqCount = this.currentAnalysis.requirement_completeness.filter(
@@ -103,11 +108,6 @@ class ResultsDisplay {
         this.statistics.modelIssues.total = 
             this.currentAnalysis.domain_model_issues ? 
             this.currentAnalysis.domain_model_issues.length : 0;
-        
-        // Count requirement completeness
-        this.statistics.requirementCompleteness.total = 
-            this.currentAnalysis.requirement_completeness ? 
-            this.currentAnalysis.requirement_completeness.length : 0;
         
         // Reset accepted counters
         this.statistics.missingRequirements.accepted = 0;

@@ -62,8 +62,8 @@ A software requirements analysis tool that uses multiple LLMs (Large Language Mo
 
 The system supports three LLM providers:
 
-1. **DeepSeek**: Uses the DeepSeek Reasoner model (R1)
-2. **OpenAI**: Uses the GPT models (default: gpt-o3-mini (medium reasoning))
+1. **DeepSeek**: Uses the DeepSeek chat model
+2. **OpenAI**: Uses the GPT models (default: gpt-o4-mini (high reasoning))
 3. **Claude**: Uses Claude models (default: claude-3-7-sonnet-20250219)
 
 ### Aggregation Methods

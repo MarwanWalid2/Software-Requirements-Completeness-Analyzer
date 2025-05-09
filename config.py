@@ -81,9 +81,9 @@ def get_available_models():
             "enabled": bool(get_deepseek_api_key() and get_deepseek_api_key() != "dummy_key_replace_me")
         },
         "openai": {
-            "name": "OpenAI o3 mini",
+            "name": "OpenAI o4 mini",
             "id": "openai",
-            "model_name": "o3-mini",
+            "model_name": "o4-mini",
             "api_key": get_openai_api_key(),
             "enabled": bool(get_openai_api_key() and get_openai_api_key() != "dummy_key_replace_me")
         },
@@ -124,7 +124,7 @@ def get_available_meta_models():
             "id": "openai_meta",
             "description": "Use OpenAI to analyze and combine the results from other models",
             "enabled": bool(get_openai_api_key() and get_openai_api_key() != "dummy_key_replace_me"),
-            "model_name": "o3-mini"
+            "model_name": "o4-mini"
         },
         "deepseek": {
             "name": "DeepSeek Meta-Analysis",

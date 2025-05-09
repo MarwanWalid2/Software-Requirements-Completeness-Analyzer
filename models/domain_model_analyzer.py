@@ -269,40 +269,59 @@ class DomainModelAnalyzer:
         
         # Simplify the prompt to reduce response size
         prompt = """
-        You are an expert software architect. Create a concise domain model for these requirements.
-        
-        Keep your model focused on the key entities and relationships. Be efficient and direct.
-        
-        FORMAT YOUR RESPONSE AS JSON with this structure:
+You are an expert software architect. Create a MINIMAL domain model that ONLY includes elements EXPLICITLY mentioned in the requirements.
+
+STRICT RULES:
+1. ONLY include classes that are EXPLICITLY mentioned in the requirements
+2. ONLY include attributes that are EXPLICITLY mentioned for each class
+3. ONLY include methods that are EXPLICITLY mentioned for each class
+4. ONLY include relationships that are EXPLICITLY specified between classes
+5. DO NOT add any elements, attributes, or methods based on your own knowledge or assumptions
+6. DO NOT "complete" the model with what you think should be there
+7. If requirements are minimal, your domain model should be equally minimal
+8. NEVER invent or assume any elements not explicitly stated in the requirements
+
+REQUIREMENTS ANALYSIS:
+- Identify ONLY explicit nouns as potential classes
+- Identify ONLY explicit verbs or actions as potential methods
+- Identify ONLY explicit properties or characteristics as attributes
+- Identify ONLY explicit relationships between entities
+
+EXAMPLES:
+- If requirements mention "login page" only, create ONLY a LoginPage class with NO attributes or methods
+- If requirements say "user can login", add ONLY a login method, but NO username/password attributes unless explicitly mentioned
+- If requirements don't mention authentication, security, or validation, DO NOT include these elements
+
+FORMAT YOUR RESPONSE AS JSON with this structure:
+{
+    "classes": [
         {
-            "classes": [
-                {
-                    "name": "ClassName",
-                    "attributes": [
-                        {"name": "attributeName", "type": "dataType", "description": "description"}
-                    ],
-                    "methods": [
-                        {"name": "methodName", "parameters": [{"name": "paramName", "type": "paramType"}], "returnType": "returnType", "description": "description"}
-                    ],
-                    "description": "Class responsibility description"
-                }
+            "name": "ClassName",
+            "attributes": [
+                {"name": "attributeName", "type": "dataType", "description": "description"}
             ],
-            "relationships": [
-                {
-                    "source": "SourceClass",
-                    "target": "TargetClass",
-                    "type": "association|composition|aggregation|inheritance|realization",
-                    "sourceMultiplicity": "1|0..1|0..*|1..*",
-                    "targetMultiplicity": "1|0..1|0..*|1..*",
-                    "description": "Description of relationship"
-                }
+            "methods": [
+                {"name": "methodName", "parameters": [{"name": "paramName", "type": "paramType"}], "returnType": "returnType", "description": "description"}
             ],
-            "plantuml": "PlantUML code that represents this domain model"
+            "description": "Class responsibility description"
         }
-        
-        Here are the requirements:
-        
-        """
+    ],
+    "relationships": [
+        {
+            "source": "SourceClass",
+            "target": "TargetClass",
+            "type": "association|composition|aggregation|inheritance|realization", 
+            "sourceMultiplicity": "1|0..1|0..*|1..*",
+            "targetMultiplicity": "1|0..1|0..*|1..*",
+            "description": "Description of relationship"
+        }
+    ],
+    "plantuml": "PlantUML code that represents this domain model"
+}
+
+Here are the requirements:
+
+"""
         
         messages = [{"role": "user", "content": prompt + requirements}]
         

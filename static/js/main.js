@@ -41,14 +41,6 @@ class RequirementsAnalyzer {
 async handleAnalyze() {
     console.log("Analyze button clicked");
     
-    // Check for file upload handler
-    if (!window.fileUploadHandler) {
-        console.error("File upload handler not available!");
-    } else {
-        console.log("File upload handler found");
-        console.log("Has file selected:", window.fileUploadHandler.hasFileSelected());
-    }
-    
     // Set loading at the beginning
     this.setLoading(true);
     
@@ -93,16 +85,14 @@ async handleAnalyze() {
             return;
         }
         
-        console.log("Selected models:", selectedModels);
-        
         // Get selected meta-model and weights
         const metaModel = this.modelSelector.getCurrentMetaModel();
         const modelWeights = this.modelSelector.getModelWeights();
         
         console.log("Sending analysis request with requirements length:", requirements.length);
         
-        // Send the analysis request
-        const response = await fetch('/api/analyze', {
+        // Send the analysis request - start async processing
+        const startResponse = await fetch('/api/analyze', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -115,23 +105,39 @@ async handleAnalyze() {
             })
         });
         
-        console.log("Analysis response received:", response.status);
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to analyze requirements');
+        if (!startResponse.ok) {
+            const errorData = await startResponse.json();
+            throw new Error(errorData.error || 'Failed to start analysis');
         }
         
-        const data = await response.json();
+        const startData = await startResponse.json();
+        const jobId = startData.job_id;
+        
+        this.showNotification('Analysis started in background. This may take a few minutes.', 'info');
+        
+        // Create and show a progress container
+        const progressContainer = this.createProgressContainer('Analyzing requirements...');
+        document.body.appendChild(progressContainer);
+        
+        // Poll for results
+        const analysisResults = await this.pollJobStatus(jobId, 120, 2000, progressContainer);
+        
         console.log("Analysis completed successfully");
         
         // Display results
-        this.resultsDisplay.displayResults(data);
+        this.resultsDisplay.displayResults(analysisResults);
+        
     } catch (error) {
         console.error('Error in analysis process:', error);
         this.showNotification(`Error: ${error.message}`, 'danger');
     } finally {
         this.setLoading(false);
+        
+        // Remove any progress container that might still exist
+        const existingProgress = document.getElementById('analysis-progress-container');
+        if (existingProgress) {
+            document.body.removeChild(existingProgress);
+        }
     }
 }
     
@@ -157,11 +163,16 @@ async handleUpdateModel() {
     const metaModel = this.modelSelector.getCurrentMetaModel();
     const modelWeights = this.modelSelector.getModelWeights();
     
+    // Get current domain model and requirements
+    const domainModel = this.resultsDisplay.getCurrentDomainModel();
+    const requirements = this.requirementsEditor.value;
+    
     // Show loader
     this.setLoading(true);
     
     try {
-        const response = await fetch('/api/update', {
+        // Start the update process
+        const startResponse = await fetch('/api/update', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -171,39 +182,134 @@ async handleUpdateModel() {
                 edited_requirements: editedRequirements,
                 selected_models: selectedModels,
                 meta_model_id: metaModel,
-                model_weights: modelWeights
+                model_weights: modelWeights,
+                domain_model: domainModel,
+                requirements: requirements
             })
         });
         
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to update model');
+        if (!startResponse.ok) {
+            const errorData = await startResponse.json();
+            throw new Error(errorData.error || 'Failed to start update');
         }
         
-        const data = await response.json();
+        const startData = await startResponse.json();
+        const jobId = startData.job_id;
         
-        if (data.success) {
-            this.showNotification('Domain model updated successfully!', 'success');
-            
-            // Reset changes tracking
-            this.resultsDisplay.reset();
-            
-            // Update display with new results
-            this.resultsDisplay.displayResults(data);
-            
-            // Update the requirements text box with the updated requirements
-            if (data.requirements) {
-                this.requirementsEditor.value = data.requirements;
-            }
-        } else {
-            this.showNotification(`Error: ${data.error || 'Failed to update model'}`, 'danger');
+        this.showNotification('Update started in background. This may take a few minutes.', 'info');
+        
+        // Create and show a progress container
+        const progressContainer = this.createProgressContainer('Updating domain model...');
+        document.body.appendChild(progressContainer);
+        
+        // Poll for results
+        const updateResults = await this.pollJobStatus(jobId, 120, 2000, progressContainer);
+        
+        // Handle success
+        this.showNotification('Domain model updated successfully!', 'success');
+        
+        // Reset changes tracking
+        this.resultsDisplay.reset();
+        
+        // Update display with new results
+        this.resultsDisplay.displayResults(updateResults);
+        
+        // Update the requirements text box with the updated requirements
+        if (updateResults.requirements) {
+            this.requirementsEditor.value = updateResults.requirements;
         }
     } catch (error) {
         console.error('Error updating model:', error);
         this.showNotification(`Error: ${error.message}`, 'danger');
     } finally {
         this.setLoading(false);
+        
+        // Remove any progress container that might still exist
+        const existingProgress = document.getElementById('update-progress-container');
+        if (existingProgress) {
+            document.body.removeChild(existingProgress);
+        }
     }
+}
+
+// Create a progress container
+createProgressContainer(message) {
+    const container = document.createElement('div');
+    container.id = 'analysis-progress-container';
+    container.style.position = 'fixed';
+    container.style.bottom = '100px';
+    container.style.left = '50%';
+    container.style.transform = 'translateX(-50%)';
+    container.style.backgroundColor = 'white';
+    container.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
+    container.style.padding = '15px 25px';
+    container.style.borderRadius = '8px';
+    container.style.zIndex = '10000';
+    container.style.minWidth = '300px';
+    
+    const title = document.createElement('h6');
+    title.style.marginBottom = '10px';
+    title.textContent = message || 'Processing...';
+    
+    const progress = document.createElement('div');
+    progress.className = 'progress';
+    progress.style.height = '10px';
+    
+    const progressBar = document.createElement('div');
+    progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+    progressBar.id = 'async-progress-bar';
+    progressBar.style.width = '0%';
+    progressBar.setAttribute('aria-valuenow', '0');
+    progressBar.setAttribute('aria-valuemin', '0');
+    progressBar.setAttribute('aria-valuemax', '100');
+    
+    progress.appendChild(progressBar);
+    container.appendChild(title);
+    container.appendChild(progress);
+    
+    return container;
+}
+
+// Poll for job status with progress updates
+async pollJobStatus(jobId, maxRetries = 120, retryInterval = 2000, progressContainer = null) {
+    let retries = 0;
+    let progressBar = null;
+    
+    if (progressContainer) {
+        progressBar = progressContainer.querySelector('#async-progress-bar');
+    }
+    
+    while (retries < maxRetries) {
+        try {
+            const response = await fetch(`/api/job-status/${jobId}`);
+            
+            if (!response.ok) {
+                throw new Error('Failed to check job status');
+            }
+            
+            const statusData = await response.json();
+            
+            // Update progress bar if available
+            if (progressBar) {
+                progressBar.style.width = `${statusData.progress}%`;
+                progressBar.setAttribute('aria-valuenow', statusData.progress);
+            }
+            
+            if (statusData.status === 'completed') {
+                return statusData.results;
+            } else if (statusData.status === 'error') {
+                throw new Error(statusData.error || 'Error processing request');
+            }
+            
+            // Wait before the next poll
+            await new Promise(resolve => setTimeout(resolve, retryInterval));
+            retries++;
+        } catch (error) {
+            throw error;
+        }
+    }
+    
+    throw new Error('Job processing timed out');
 }
     
     /**

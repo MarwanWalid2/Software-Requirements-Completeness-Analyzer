@@ -24,6 +24,7 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+os.environ["GUNICORN_CMD_ARGS"] = "--timeout=250 --keep-alive=5 --graceful-timeout=120"
 
 # Initialize Flask app
 app = Flask(__name__)

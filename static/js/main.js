@@ -120,7 +120,7 @@ async handleAnalyze() {
         document.body.appendChild(progressContainer);
         
         // Poll for results
-        const analysisResults = await this.pollJobStatus(jobId, 120, 2000, progressContainer);
+        const analysisResults = await this.pollJobStatus(jobId, 300, 2000, progressContainer);
         
         console.log("Analysis completed successfully");
         
@@ -203,7 +203,7 @@ async handleUpdateModel() {
         document.body.appendChild(progressContainer);
         
         // Poll for results
-        const updateResults = await this.pollJobStatus(jobId, 120, 2000, progressContainer);
+        const updateResults = await this.pollJobStatus(jobId, 300, 2000, progressContainer);
         
         // Handle success
         this.showNotification('Domain model updated successfully!', 'success');
@@ -271,7 +271,7 @@ createProgressContainer(message) {
 }
 
 // Poll for job status with progress updates
-async pollJobStatus(jobId, maxRetries = 120, retryInterval = 2000, progressContainer = null) {
+async pollJobStatus(jobId, maxRetries = 300, retryInterval = 2000, progressContainer = null) {
     let retries = 0;
     let progressBar = null;
     

@@ -102,7 +102,6 @@ async processFileIfNeeded() {
         // Create form data
         const formData = new FormData();
         formData.append('file', this.currentFile);
-        // Always extract requirements - no checkbox needed
         formData.append('extract_requirements', 'true');
         
         // Get selected models from model selector
@@ -117,7 +116,7 @@ async processFileIfNeeded() {
         // Show notification
         this.showNotification(`Processing file: ${this.currentFile.name}...`, 'info');
         
-        // Upload and process file
+        // Upload file and start processing
         const response = await fetch('/api/upload-srs', {
             method: 'POST',
             body: formData
@@ -128,11 +127,18 @@ async processFileIfNeeded() {
             throw new Error(errorData.error || 'Failed to process file');
         }
         
-        // Process response
+        // Get job ID
         const data = await response.json();
+        const jobId = data.job_id;
+        
+        // Show progress notification
+        this.showNotification(`File uploaded. Processing in background...`, 'info');
+        
+        // Poll for job completion
+        const result = await this.pollJobStatus(jobId);
         
         // Store the original content
-        this.uploadedFileContent = data.original_content;
+        this.uploadedFileContent = result.original_content;
         
         // Clear the text box first
         if (this.requirementsEditor) {
@@ -140,18 +146,18 @@ async processFileIfNeeded() {
         }
         
         // Update the requirements editor with extracted requirements
-        if (data.extracted_requirements) {
+        if (result.extracted_requirements) {
             if (this.requirementsEditor) {
-                this.requirementsEditor.value = data.extracted_requirements;
+                this.requirementsEditor.value = result.extracted_requirements;
             }
-            this.showNotification(`Successfully extracted ${data.requirements_count} requirements from ${this.currentFile.name}`, 'success');
-            return data.extracted_requirements;
+            this.showNotification(`Successfully extracted ${result.requirements_count} requirements from ${this.currentFile.name}`, 'success');
+            return result.extracted_requirements;
         } else {
             if (this.requirementsEditor) {
-                this.requirementsEditor.value = data.content || '';
+                this.requirementsEditor.value = result.content || '';
             }
             this.showNotification(`File processed. Content loaded into editor.`, 'info');
-            return data.content;
+            return result.content;
         }
         
     } catch (error) {
@@ -161,6 +167,79 @@ async processFileIfNeeded() {
     } finally {
         this.processingFile = false;
     }
+}
+
+// Add a new method to poll for job status
+async pollJobStatus(jobId, maxRetries = 60, retryInterval = 2000) {
+    let retries = 0;
+    
+    // Create a progress indicator
+    const progressContainer = document.createElement('div');
+    progressContainer.className = 'progress mb-3';
+    progressContainer.style.height = '20px';
+    
+    const progressBar = document.createElement('div');
+    progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+    progressBar.style.width = '0%';
+    progressBar.setAttribute('role', 'progressbar');
+    progressBar.setAttribute('aria-valuenow', '0');
+    progressBar.setAttribute('aria-valuemin', '0');
+    progressBar.setAttribute('aria-valuemax', '100');
+    
+    progressContainer.appendChild(progressBar);
+    
+    // Add to page near the file upload section
+    const fileUploadContainer = document.querySelector('.file-upload-container');
+    if (fileUploadContainer) {
+        fileUploadContainer.appendChild(progressContainer);
+    }
+    
+    while (retries < maxRetries) {
+        try {
+            const response = await fetch(`/api/job-status/${jobId}`);
+            
+            if (!response.ok) {
+                throw new Error('Failed to check job status');
+            }
+            
+            const statusData = await response.json();
+            
+            // Update progress bar
+            progressBar.style.width = `${statusData.progress}%`;
+            progressBar.setAttribute('aria-valuenow', statusData.progress);
+            progressBar.textContent = `${statusData.progress}%`;
+            
+            if (statusData.status === 'completed') {
+                // Remove progress bar on completion
+                if (fileUploadContainer && progressContainer) {
+                    fileUploadContainer.removeChild(progressContainer);
+                }
+                return statusData.results;
+            } else if (statusData.status === 'error') {
+                // Remove progress bar on error
+                if (fileUploadContainer && progressContainer) {
+                    fileUploadContainer.removeChild(progressContainer);
+                }
+                throw new Error(statusData.error || 'Error processing file');
+            }
+            
+            // Wait before the next poll
+            await new Promise(resolve => setTimeout(resolve, retryInterval));
+            retries++;
+        } catch (error) {
+            // Remove progress bar on error
+            if (fileUploadContainer && progressContainer) {
+                fileUploadContainer.removeChild(progressContainer);
+            }
+            throw error;
+        }
+    }
+    
+    // Remove progress bar on timeout
+    if (fileUploadContainer && progressContainer) {
+        fileUploadContainer.removeChild(progressContainer);
+    }
+    throw new Error('Job processing timed out');
 }
     
     /**

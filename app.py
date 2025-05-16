@@ -34,6 +34,18 @@ Session(app)
 # Initialize the analyzer
 analyzer = DomainModelAnalyzer()
 
+import threading
+import uuid
+from collections import defaultdict
+
+# Add a job storage (replace with Redis in production)
+job_store = {
+    'status': {},      # job_id -> 'pending', 'processing', 'completed', 'error'
+    'results': {},     # job_id -> result data
+    'errors': {},      # job_id -> error message
+    'progress': defaultdict(int)  # job_id -> progress percentage
+}
+
 @app.route('/')
 def index():
     """Render the main page with LLM model selection options"""
@@ -444,15 +456,13 @@ def update_model_and_requirements():
 
 @app.route('/api/upload-srs', methods=['POST'])
 def upload_srs_file():
-    """API endpoint to upload and process SRS documents"""
+    """API endpoint to upload SRS documents with async processing"""
     try:
         logger.info("Received SRS file upload request")
         
         # Check if a file was uploaded
         if 'file' not in request.files:
             logger.warning("No file part in request")
-            logger.debug(f"Request files: {request.files}")
-            logger.debug(f"Request form: {request.form}")
             return jsonify({"error": "No file part"}), 400
         
         file = request.files['file']
@@ -464,28 +474,65 @@ def upload_srs_file():
         
         logger.info(f"Processing file: {file.filename}, size: {file.content_length or 'unknown'}, type: {file.content_type}")
         
-        # Always extract requirements
-        extract_requirements = True
-        logger.info(f"Always extracting requirements from document")
-        
-        # Get selected models from the request
-        selected_models = request.form.getlist('selected_models[]')
-        if not selected_models:
-            selected_models = ['claude']  # Default
-        logger.info(f"Selected models for extraction: {selected_models}")
-        
-        # Get meta model
-        meta_model_id = request.form.get('meta_model_id', 'majority')
-        logger.info(f"Meta model for extraction: {meta_model_id}")
-        
         # Save the file to a temporary location
         temp_filepath = os.path.join(tempfile.gettempdir(), secure_filename(file.filename))
         file.save(temp_filepath)
         logger.info(f"File saved to {temp_filepath}")
         
+        # Generate a job ID
+        job_id = str(uuid.uuid4())
+        
+        # Get extraction parameters
+        extract_requirements = True
+        
+        # Get selected models from the request
+        selected_models = request.form.getlist('selected_models[]')
+        if not selected_models:
+            selected_models = ['claude']  # Default
+        
+        # Get meta model
+        meta_model_id = request.form.get('meta_model_id', 'majority')
+        
+        # Set initial job status
+        job_store['status'][job_id] = 'pending'
+        job_store['progress'][job_id] = 0
+        
+        # Start a background thread to process the file
+        thread = threading.Thread(
+            target=process_srs_file_async,
+            args=(job_id, temp_filepath, file.filename, extract_requirements, selected_models, meta_model_id)
+        )
+        thread.daemon = True
+        thread.start()
+        
+        # Return immediately with the job ID
+        return jsonify({
+            "success": True,
+            "message": "File upload started. Processing in background.",
+            "job_id": job_id
+        })
+        
+    except Exception as e:
+        logger.critical(f"Unhandled exception in upload endpoint: {str(e)}")
+        logger.critical(traceback.format_exc())
+        return jsonify({
+            "error": f"An unexpected error occurred: {str(e)}",
+            "traceback": traceback.format_exc()
+        }), 500
+    
+
+
+# a new function to process the file asynchronously
+def process_srs_file_async(job_id, temp_filepath, filename, extract_requirements, selected_models, meta_model_id):
+    """Process SRS file in a background thread"""
+    try:
+        # Update job status
+        job_store['status'][job_id] = 'processing'
+        job_store['progress'][job_id] = 10
+        
         # Process the file based on its extension
-        file_extension = os.path.splitext(file.filename)[1].lower()
-        logger.info(f"File extension: {file_extension}")
+        file_extension = os.path.splitext(filename)[1].lower()
+        logger.info(f"Processing file with extension: {file_extension}")
         content = ""
         
         if file_extension in ['.txt', '.md']:
@@ -505,9 +552,11 @@ def upload_srs_file():
                 content = '\n'.join(paragraphs)
                 logger.info(f"Processed DOCX file ({len(content)} characters)")
             except ImportError:
-                # If docx is not installed, return error
-                logger.error("python-docx library not installed")
-                return jsonify({"error": "Cannot process DOCX files. The python-docx library is not installed."}), 500
+                error_msg = "Cannot process DOCX files. The python-docx library is not installed."
+                logger.error(error_msg)
+                job_store['status'][job_id] = 'error'
+                job_store['errors'][job_id] = error_msg
+                return
         
         elif file_extension in ['.pdf']:
             # PDF files using pypdf
@@ -526,29 +575,33 @@ def upload_srs_file():
                     content += page_text + "\n"
                 
                 if not content.strip():
-                    logger.warning("PDF extraction returned empty content")
-                    # If we got empty content, the PDF might be image-based
-                    # We could add OCR here in a future enhancement
-                    return jsonify({
-                        "error": "The PDF appears to be image-based or doesn't contain extractable text. Please convert it to a text-based format or manually copy the requirements."
-                    }), 400
+                    error_msg = "The PDF appears to be image-based or doesn't contain extractable text."
+                    logger.warning(error_msg)
+                    job_store['status'][job_id] = 'error'
+                    job_store['errors'][job_id] = error_msg
+                    return
                 
                 logger.info(f"Successfully processed PDF with total {len(content)} characters")
             except ImportError:
-                logger.error("pypdf library not installed")
-                return jsonify({
-                    "error": "Cannot process PDF files. The pypdf library is not installed."
-                }), 500
+                error_msg = "Cannot process PDF files. The pypdf library is not installed."
+                logger.error(error_msg)
+                job_store['status'][job_id] = 'error'
+                job_store['errors'][job_id] = error_msg
+                return
             except Exception as e:
-                logger.error(f"Error processing PDF: {str(e)}")
+                error_msg = f"Error processing PDF: {str(e)}"
+                logger.error(error_msg)
                 logger.error(traceback.format_exc())
-                return jsonify({
-                    "error": f"Error processing PDF: {str(e)}"
-                }), 500
+                job_store['status'][job_id] = 'error'
+                job_store['errors'][job_id] = error_msg
+                return
         
         else:
-            logger.warning(f"Unsupported file format: {file_extension}")
-            return jsonify({"error": f"Unsupported file format: {file_extension}"}), 400
+            error_msg = f"Unsupported file format: {file_extension}"
+            logger.warning(error_msg)
+            job_store['status'][job_id] = 'error'
+            job_store['errors'][job_id] = error_msg
+            return
         
         # Clean up the temporary file
         try:
@@ -557,12 +610,16 @@ def upload_srs_file():
         except Exception as e:
             logger.warning(f"Could not remove temporary file: {str(e)}")
         
-        # Store the original content in the session
-        session['uploaded_srs_content'] = content
-        logger.info("Stored original content in session")
+        # Store the original content
+        job_store['progress'][job_id] = 30
+        result = {
+            "original_content": content,
+            "content": content
+        }
         
         # If extraction is requested, extract requirements using LLMs
         if extract_requirements:
+            job_store['progress'][job_id] = 40
             logger.info("Extracting requirements using LLMs")
             
             # Extract requirements using the domain model analyzer
@@ -576,6 +633,8 @@ def upload_srs_file():
                 extracted_requirements = extraction_result.get("extracted_requirements", "")
                 requirements_count = extraction_result.get("requirements_count", 0)
                 
+                job_store['progress'][job_id] = 70
+                
                 # Extract context information as well
                 context_result = analyzer.extract_context_from_srs(
                     content,
@@ -583,13 +642,10 @@ def upload_srs_file():
                     meta_model_id=meta_model_id
                 )
                 
-                # Store in session for future use
-                session['requirements'] = extracted_requirements
-                session['document_context'] = context_result
+                job_store['progress'][job_id] = 90
                 
-                return jsonify({
-                    "success": True,
-                    "original_content": content,
+                # Update the result
+                result.update({
                     "extracted_requirements": extracted_requirements,
                     "requirements_count": requirements_count,
                     "context": context_result,
@@ -600,32 +656,44 @@ def upload_srs_file():
                 logger.error(f"Error extracting requirements: {str(e)}")
                 logger.error(traceback.format_exc())
                 # Fall back to returning the raw content
-                return jsonify({
-                    "success": False,
-                    "original_content": content,
-                    "content": content,
+                result.update({
                     "error": f"Could not extract requirements: {str(e)}",
                     "message": "Failed to extract requirements. Returning the original document content."
                 })
         
-        # If no extraction requested, just return the content
-        logger.info("No extraction requested, returning original content")
-        session['requirements'] = content
-        
-        return jsonify({
-            "success": True,
-            "original_content": content,
-            "content": content,
-            "message": "File uploaded successfully."
-        })
+        # Store the result and update job status
+        job_store['results'][job_id] = result
+        job_store['status'][job_id] = 'completed'
+        job_store['progress'][job_id] = 100
+        logger.info(f"Job {job_id} completed successfully")
         
     except Exception as e:
-        logger.critical(f"Unhandled exception in upload endpoint: {str(e)}")
-        logger.critical(traceback.format_exc())
-        return jsonify({
-            "error": f"An unexpected error occurred: {str(e)}",
-            "traceback": traceback.format_exc()
-        }), 500
+        logger.error(f"Error in async processing: {str(e)}")
+        logger.error(traceback.format_exc())
+        job_store['status'][job_id] = 'error'
+        job_store['errors'][job_id] = str(e)
+
+# a new endpoint to check job status
+@app.route('/api/job-status/<job_id>', methods=['GET'])
+def check_job_status(job_id):
+    """API endpoint to check the status of an async job"""
+    if job_id not in job_store['status']:
+        return jsonify({"error": "Job not found"}), 404
+    
+    status = job_store['status'][job_id]
+    progress = job_store['progress'][job_id]
+    
+    response = {
+        "status": status,
+        "progress": progress
+    }
+    
+    if status == 'completed':
+        response["results"] = job_store['results'][job_id]
+    elif status == 'error':
+        response["error"] = job_store['errors'].get(job_id, "Unknown error")
+    
+    return jsonify(response)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))

@@ -88,9 +88,9 @@ def get_available_models():
             "enabled": bool(get_openai_api_key() and get_openai_api_key() != "dummy_key_replace_me")
         },
         "claude": {
-            "name": "Claude 3.7 Sonnet",
+            "name": "Claude 4.0 Sonnet",
             "id": "claude",
-            "model_name": "claude-3-7-sonnet-20250219",
+            "model_name": "claude-sonnet-4-20250514",
             "api_key": get_anthropic_api_key(),
             "enabled": bool(get_anthropic_api_key() and get_anthropic_api_key() != "dummy_key_replace_me")
         }
@@ -138,7 +138,7 @@ def get_available_meta_models():
             "id": "claude_meta",
             "description": "Use Claude to analyze and combine the results from other models",
             "enabled": bool(get_anthropic_api_key() and get_anthropic_api_key() != "dummy_key_replace_me"),
-            "model_name": "claude-3-7-sonnet-20250219"
+            "model_name": "claude-sonnet-4-20250514"
         }
     }
     

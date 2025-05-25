@@ -119,11 +119,11 @@ class ClaudeAdapter(LLMAdapterBase):
         logger.info(f"Generating response from Claude model: {self.model_name}")
         
         # Set max tokens based on the model
-        max_tokens = 128000
+        max_tokens = 64000
+        thinking_budget = 63999 
         
         for attempt in range(self.max_retries):
             try:
-            
                 # Convert OpenAI message format to Anthropic format
                 system_message = None
                 user_messages = []
@@ -139,8 +139,9 @@ class ClaudeAdapter(LLMAdapterBase):
                     "model": self.model_name,
                     "max_tokens": max_tokens,
                     "temperature": temperature,
-                     "extra_headers": {
-                        "anthropic-beta": "output-128k-2025-02-19"
+                    "thinking": {
+                        "type": "enabled",
+                        "budget_tokens": thinking_budget
                     }
                 }
                 

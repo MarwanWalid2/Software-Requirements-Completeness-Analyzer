@@ -182,15 +182,15 @@ def analyze_requirements():
             }
         }
         
-        # # Save the results to a JSON file
-        # timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        # filename = f"analysis_results_{timestamp}.json"
-        # try:
-        #     with open(filename, "w") as f:
-        #         json.dump(response, f, indent=2)
-        #     logger.info(f"Results saved to {filename}")
-        # except Exception as e:
-        #     logger.error(f"Could not save results to file: {str(e)}")
+        # Save the results to a JSON file
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        filename = f"analysis_results_{timestamp}.json"
+        try:
+            with open(filename, "w") as f:
+                json.dump(response, f, indent=2)
+            logger.info(f"Results saved to {filename}")
+        except Exception as e:
+            logger.error(f"Could not save results to file: {str(e)}")
         
         logger.info("Analysis completed successfully")
         return jsonify(response)

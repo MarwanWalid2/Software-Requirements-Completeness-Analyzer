@@ -908,80 +908,64 @@ Here are the requirements:
             requirements, domain_model, selected_models, meta_model_id, model_weights
         )
         
-        # Step 3: Analyze general requirement issues and domain model issues
+        # Step 3: Analyze requirement issues and domain model issues
         prompt = """
-            You are an expert software architect and requirements analyst conducting a critical evaluation of a domain model.
+            You are an expert requirements analyst and software architect conducting a thorough analysis of software requirements and their domain model.
             
             ## TASK
-            Thoroughly analyze the provided domain model against the requirements to identify ALL issues, inconsistencies, and quality problems.
+            Analyze the provided requirements and domain model to identify:
+            1. Issues within the requirements themselves (ambiguity, conflicts, inconsistencies)
+            2. Issues with how the domain model represents the requirements
             
-            ## DETAILED INSTRUCTIONS
-            Examine each component of the domain model from multiple perspectives:
+            ## DETAILED INSTRUCTIONS FOR REQUIREMENT ISSUES
+            For each requirement, identify:
+            - Ambiguity: Unclear or vague statements that could be interpreted multiple ways
+            - Conflicts: Requirements that contradict each other
+            - Inconsistencies: Requirements that use different terminology for the same concept
+            - Missing context: Requirements that lack necessary details
+            - Testability issues: Requirements that cannot be verified
+            - Implementation concerns: Requirements that are technically infeasible
             
-            1. STRUCTURAL ISSUES
-            - Missing classes that should exist based on domain knowledge or requirements
-            - Incorrectly modeled inheritance hierarchies
-            - Improper relationship types (e.g., using association instead of composition)
-            - Incorrect multiplicity in relationships
-            - Cyclical dependencies that create design problems
-            
-            2. SEMANTIC ISSUES
-            - Classes that don't properly represent domain concepts
-            - Attributes placed in wrong classes
-            - Methods with incorrect parameters or return types
-            - Naming inconsistencies or unclear terminology
-            
-            3. COMPLETENESS ISSUES
-            - Missing attributes for capturing required information
-            - Missing methods for required functionality
-            - Missing relationships between classes that should interact
-            - Incomplete or vague class descriptions
-            
-            4. REQUIREMENTS ALIGNMENT ISSUES
-            - Domain model elements with no clear connection to requirements
-            - Requirements not properly reflected in the model
-            - Misinterpretation of requirements in the model
-            
-            ## EVALUATION CRITERIA
-            For each issue found:
-            - Provide specific, actionable feedback
-            - Rate severity: CRITICAL (breaks the model), HIGH (major flaw), MEDIUM (should fix), or LOW (suggestion)
-            - Explain impact on system quality or correctness
-            - Reference specific requirements affected
-            - Provide a clear suggestion for fixing the issue
+            ## DETAILED INSTRUCTIONS FOR DOMAIN MODEL ISSUES
+            Examine the domain model for:
+            - Missing classes that should exist based on requirements
+            - Incorrect relationships between classes
+            - Missing or incorrect attributes
+            - Architectural concerns
             
             ## OUTPUT FORMAT
             Return a JSON object with this structure:
             {
-            "domain_model_issues": [
-                {
-                "element_type": "Class|Relationship|Attribute|Method|General",
-                "element_name": "Name of the specific element with issue",
-                "issue_type": "Missing|Incomplete|Incorrect|Inconsistent|Misaligned",
-                "severity": "CRITICAL|HIGH|MEDIUM|LOW",
-                "description": "Detailed description of the issue",
-                "impact": "Explanation of why this matters",
-                "affected_requirements": ["REQ-001", "REQ-002"],
-                "suggested_fix": "Specific suggestion to resolve the issue"
-                }
-            ],
-            "architectural_concerns": [
-                {
-                "concern_type": "Design|Performance|Scalability|Maintainability",
-                "description": "Description of a higher-level architectural concern",
-                "severity": "HIGH|MEDIUM|LOW",
-                "suggested_approach": "Recommended architectural approach"
-                }
-            ],
-            "overall_assessment": {
-                "model_quality_score": 0-100,
-                "strengths": ["Strength 1", "Strength 2"],
-                "priority_fixes": ["Fix 1", "Fix 2"]
-            }
+                "requirement_issues": [
+                    {
+                        "requirement_id": "REQ-001",
+                        "requirement_text": "The actual requirement text",
+                        "issues": [
+                            {
+                                "issue_type": "Ambiguity|Conflict|Inconsistency|Missing Context|Testability|Implementation",
+                                "severity": "MUST FIX|SHOULD FIX|SUGGESTION",
+                                "description": "Detailed description of the issue",
+                                "suggested_fix": "Specific suggestion to fix the issue",
+                                "affected_model_elements": ["Class1", "Class2"]
+                            }
+                        ]
+                    }
+                ],
+                "domain_model_issues": [
+                    {
+                        "element_type": "Class|Relationship|Attribute|Method|General",
+                        "element_name": "Name of the specific element with issue",
+                        "issue_type": "Missing|Incomplete|Incorrect|Inconsistent|Misaligned",
+                        "severity": "MUST FIX|SHOULD FIX|SUGGESTION",
+                        "description": "Detailed description of the issue",
+                        "suggested_fix": "Specific suggestion to resolve the issue",
+                        "affected_requirements": ["REQ-001", "REQ-002"]
+                    }
+                ]
             }
             
-            IMPORTANT: Be thorough and meticulous. Do not overlook subtle issues that could cause problems later.
-        """
+            ## REQUIREMENTS TO ANALYZE:
+            """
         
         # Add domain model
         prompt += "\n\n## DOMAIN MODEL\n"

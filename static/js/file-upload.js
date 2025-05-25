@@ -170,7 +170,7 @@ async processFileIfNeeded() {
 }
 
 // Add a new method to poll for job status
-async pollJobStatus(jobId, maxRetries = 60, retryInterval = 2000) {
+async pollJobStatus(jobId, maxRetries = 6000, retryInterval = 1000) {
     let retries = 0;
     
     // Create a progress indicator

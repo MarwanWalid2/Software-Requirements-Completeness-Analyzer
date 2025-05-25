@@ -271,7 +271,7 @@ createProgressContainer(message) {
 }
 
 // Poll for job status with progress updates
-async pollJobStatus(jobId, maxRetries = 300, retryInterval = 2000, progressContainer = null) {
+async pollJobStatus(jobId, maxRetries = 6000, retryInterval = 1000, progressContainer = null) {
     let retries = 0;
     let progressBar = null;
     

@@ -17,7 +17,7 @@ class LLMAdapterBase:
         self.max_retries = 2
         self.retry_delay = 5  # seconds
     
-    def generate_response(self, messages, temperature=0.5):
+    def generate_response(self, messages, temperature=1.0):
         """
         Generic method to generate a response from the LLM
         To be implemented by subclasses
@@ -28,7 +28,7 @@ class LLMAdapterBase:
 class DeepSeekAdapter(LLMAdapterBase):
     """Adapter for DeepSeek LLM"""
     
-    def generate_response(self, messages, temperature=0.5):
+    def generate_response(self, messages, temperature=1.0):
         """Generate a response from DeepSeek LLM"""
         logger.info(f"Generating response from DeepSeek model: {self.model_name}")
         
@@ -71,7 +71,7 @@ class DeepSeekAdapter(LLMAdapterBase):
 class OpenAIAdapter(LLMAdapterBase):
     """Adapter for OpenAI LLM"""
     
-    def generate_response(self, messages, temperature=0.7):
+    def generate_response(self, messages, temperature=1.0):
         """Generate a response from OpenAI LLM"""
         logger.info(f"Generating response from OpenAI model: {self.model_name}")
         
@@ -114,7 +114,7 @@ class OpenAIAdapter(LLMAdapterBase):
 class ClaudeAdapter(LLMAdapterBase):
     """Adapter for Claude/Anthropic LLM"""
     
-    def generate_response(self, messages, temperature=0.7):
+    def generate_response(self, messages, temperature=1.0):
         """Generate a response from Claude LLM"""
         logger.info(f"Generating response from Claude model: {self.model_name}")
         
@@ -138,7 +138,7 @@ class ClaudeAdapter(LLMAdapterBase):
                 request_params = {
                     "model": self.model_name,
                     "max_tokens": max_tokens,
-                    "temperature": temperature,
+                    # "temperature": temperature,
                     "thinking": {
                         "type": "enabled",
                         "budget_tokens": thinking_budget

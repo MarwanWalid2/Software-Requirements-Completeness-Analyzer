@@ -114,14 +114,14 @@ class OpenAIAdapter(LLMAdapterBase):
 class ClaudeAdapter(LLMAdapterBase):
     """Adapter for Claude/Anthropic LLM"""
     
-    def generate_response(self, messages, temperature=0.7):
+    def generate_response(self, messages, temperature=1.0):
         """Generate a response from Claude LLM"""
         logger.info(f"Generating response from Claude model: {self.model_name}")
         
         # Claude Sonnet 4 supports up to 64k output tokens
         # Much larger context window and thinking capabilities
         max_tokens = 64000
-        thinking_budget = 63999  # Leave 1 token for actual output
+        thinking_budget = 63999  
         
         for attempt in range(self.max_retries):
             try:
@@ -139,7 +139,7 @@ class ClaudeAdapter(LLMAdapterBase):
                 request_params = {
                     "model": self.model_name,
                     "max_tokens": max_tokens,
-                    "temperature": temperature,
+                    # "temperature": temperature,
                     "thinking": {
                         "type": "enabled",
                         "budget_tokens": thinking_budget

@@ -84,9 +84,9 @@ class ModelSelector {
      */
     addDefaultModelOption() {
         this.availableModels = {
-            'deepseek': {
-                id: 'deepseek',
-                name: 'DeepSeek Reasoner',
+            'openai': {
+                id: 'openai',
+                name: 'GPT-o4-mini',
                 enabled: true
             }
         };
@@ -119,7 +119,7 @@ class ModelSelector {
             this.modelSelectionContainer.appendChild(checkbox);
             
             // Add to selected models if checked by default
-            if (model.id === 'deepseek') {
+            if (model.id === 'openai') {
                 this.selectedModels.push(model.id);
                 this.modelWeights[model.id] = this.defaultWeights[model.id] || 1.0;
             }
@@ -137,7 +137,7 @@ class ModelSelector {
     createModelCheckbox(model) {
         const checkboxDiv = document.createElement('div');
         checkboxDiv.className = 'model-checkbox';
-        if (model.id === 'deepseek') {
+        if (model.id === 'openai') {
             checkboxDiv.classList.add('selected');
         }
         
@@ -145,7 +145,7 @@ class ModelSelector {
         checkbox.type = 'checkbox';
         checkbox.id = `model-${model.id}`;
         checkbox.value = model.id;
-        checkbox.checked = model.id === 'deepseek'; // Default to DeepSeek checked
+        checkbox.checked = model.id === 'openai';
         
         const label = document.createElement('label');
         label.htmlFor = `model-${model.id}`;

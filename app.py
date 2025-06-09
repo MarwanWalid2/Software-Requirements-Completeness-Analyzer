@@ -69,7 +69,7 @@ def analyze_requirements():
         requirements = data.get('requirements', '')
         
         # Get selected models from request or use default
-        selected_models = data.get('selected_models', ['deepseek'])
+        selected_models = data.get('selected_models', ['openai'])
         meta_model_id = data.get('meta_model_id', 'majority')
         model_weights = data.get('model_weights', {}) 
 
@@ -215,7 +215,7 @@ def update_model_and_requirements():
         edited_requirements = data.get('edited_requirements', [])
         
         # Get selected models from session or request
-        selected_models = data.get('selected_models') or session.get('selected_models', ['deepseek'])
+        selected_models = data.get('selected_models') or session.get('selected_models', ['openai'])
         meta_model_id = data.get('meta_model_id') or session.get('meta_model_id', 'majority')
         model_weights = data.get('model_weights') or session.get('model_weights', {})
         
@@ -443,7 +443,7 @@ def update_model_and_requirements():
 
 @app.route('/api/upload-srs', methods=['POST'])
 def upload_srs_file():
-    """API endpoint to upload and process SRS documents"""
+    """API endpoint to upload and process SRS documents using Mistral AI OCR"""
     try:
         logger.info("Received SRS file upload request")
         
@@ -470,7 +470,7 @@ def upload_srs_file():
         # Get selected models from the request
         selected_models = request.form.getlist('selected_models[]')
         if not selected_models:
-            selected_models = ['claude']  # Default
+            selected_models = ['openai']  # Default
         logger.info(f"Selected models for extraction: {selected_models}")
         
         # Get meta model
@@ -482,72 +482,93 @@ def upload_srs_file():
         file.save(temp_filepath)
         logger.info(f"File saved to {temp_filepath}")
         
-        # Process the file based on its extension
-        file_extension = os.path.splitext(file.filename)[1].lower()
-        logger.info(f"File extension: {file_extension}")
-        content = ""
-        
-        if file_extension in ['.txt', '.md']:
-            # Plain text files
-            logger.info("Processing as text file")
-            with open(temp_filepath, 'r', encoding='utf-8', errors='replace') as f:
-                content = f.read()
-            logger.info(f"Read text file ({len(content)} characters)")
-        
-        elif file_extension in ['.docx']:
-            # Word documents using docx library
-            logger.info("Processing as DOCX file")
-            try:
-                import docx
-                doc = docx.Document(temp_filepath)
-                paragraphs = [p.text for p in doc.paragraphs]
-                content = '\n'.join(paragraphs)
-                logger.info(f"Processed DOCX file ({len(content)} characters)")
-            except ImportError:
-                # If docx is not installed, return error
-                logger.error("python-docx library not installed")
-                return jsonify({"error": "Cannot process DOCX files. The python-docx library is not installed."}), 500
-        
-        elif file_extension in ['.pdf']:
-            # PDF files using pypdf
-            logger.info("Processing as PDF file")
-            try:
-                import pypdf
-                logger.info("Opening PDF file with pypdf")
-                pdf_reader = pypdf.PdfReader(temp_filepath)
-                logger.info(f"PDF has {len(pdf_reader.pages)} pages")
-                
-                content = ""
-                for i, page in enumerate(pdf_reader.pages):
-                    logger.info(f"Extracting text from page {i+1}/{len(pdf_reader.pages)}")
-                    page_text = page.extract_text()
-                    logger.info(f"Extracted {len(page_text)} characters from page {i+1}")
-                    content += page_text + "\n"
-                
-                if not content.strip():
-                    logger.warning("PDF extraction returned empty content")
-                    # If we got empty content, the PDF might be image-based
-                    # We could add OCR here in a future enhancement
+        # Process the file using Mistral AI OCR
+        try:
+            from services.mistral_file_processor import mistral_processor
+            
+            logger.info("Processing file with Mistral AI OCR service")
+            content, metadata = mistral_processor.process_file(temp_filepath, file.filename)
+            
+            logger.info(f"Mistral AI OCR completed successfully")
+            logger.info(f"Extracted content: {len(content)} characters")
+            logger.info(f"Metadata: {metadata}")
+            
+        except Exception as e:
+            logger.error(f"Mistral AI OCR processing failed: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+            # Fallback to legacy processing methods
+            logger.info("Falling back to legacy file processing methods")
+            content = ""
+            metadata = {"processed_with": "legacy_fallback", "error": str(e)}
+            
+            # Get file extension for fallback processing
+            file_extension = os.path.splitext(file.filename)[1].lower()
+            logger.info(f"File extension: {file_extension}")
+            
+            if file_extension in ['.txt', '.md']:
+                # Plain text files
+                logger.info("Processing as text file (fallback)")
+                with open(temp_filepath, 'r', encoding='utf-8', errors='replace') as f:
+                    content = f.read()
+                logger.info(f"Read text file ({len(content)} characters)")
+            
+            elif file_extension in ['.docx']:
+                # Word documents using docx library
+                logger.info("Processing as DOCX file (fallback)")
+                try:
+                    import docx
+                    doc = docx.Document(temp_filepath)
+                    paragraphs = [p.text for p in doc.paragraphs]
+                    content = '\n'.join(paragraphs)
+                    logger.info(f"Processed DOCX file ({len(content)} characters)")
+                except ImportError:
+                    logger.error("python-docx library not installed")
+                    return jsonify({"error": "Cannot process DOCX files. The python-docx library is not installed."}), 500
+            
+            elif file_extension in ['.pdf']:
+                # PDF files using pypdf as fallback
+                logger.info("Processing as PDF file (fallback)")
+                try:
+                    import pypdf
+                    logger.info("Opening PDF file with pypdf")
+                    pdf_reader = pypdf.PdfReader(temp_filepath)
+                    logger.info(f"PDF has {len(pdf_reader.pages)} pages")
+                    
+                    content = ""
+                    for i, page in enumerate(pdf_reader.pages):
+                        logger.info(f"Extracting text from page {i+1}/{len(pdf_reader.pages)}")
+                        page_text = page.extract_text()
+                        logger.info(f"Extracted {len(page_text)} characters from page {i+1}")
+                        content += page_text + "\n"
+                    
+                    if not content.strip():
+                        logger.warning("PDF extraction returned empty content")
+                        return jsonify({
+                            "error": "The PDF appears to be image-based or doesn't contain extractable text. Mistral AI OCR also failed. Please try a different format."
+                        }), 400
+                    
+                    logger.info(f"Successfully processed PDF with total {len(content)} characters")
+                except ImportError:
+                    logger.error("pypdf library not installed")
                     return jsonify({
-                        "error": "The PDF appears to be image-based or doesn't contain extractable text. Please convert it to a text-based format or manually copy the requirements."
-                    }), 400
-                
-                logger.info(f"Successfully processed PDF with total {len(content)} characters")
-            except ImportError:
-                logger.error("pypdf library not installed")
+                        "error": "Cannot process PDF files. The pypdf library is not installed."
+                    }), 500
+                except Exception as pdf_e:
+                    logger.error(f"Error processing PDF with fallback: {str(pdf_e)}")
+                    logger.error(traceback.format_exc())
+                    return jsonify({
+                        "error": f"Error processing PDF: {str(pdf_e)}"
+                    }), 500
+            
+            else:
+                logger.error(f"Unsupported file format for fallback: {file_extension}")
+                return jsonify({"error": f"Unsupported file format: {file_extension}. Mistral AI OCR also failed."}), 400
+            
+            if not content.strip():
                 return jsonify({
-                    "error": "Cannot process PDF files. The pypdf library is not installed."
-                }), 500
-            except Exception as e:
-                logger.error(f"Error processing PDF: {str(e)}")
-                logger.error(traceback.format_exc())
-                return jsonify({
-                    "error": f"Error processing PDF: {str(e)}"
-                }), 500
-        
-        else:
-            logger.warning(f"Unsupported file format: {file_extension}")
-            return jsonify({"error": f"Unsupported file format: {file_extension}"}), 400
+                    "error": "Could not extract any content from the file using either Mistral AI OCR or fallback methods."
+                }), 400
         
         # Clean up the temporary file
         try:
@@ -558,7 +579,8 @@ def upload_srs_file():
         
         # Store the original content in the session
         session['uploaded_srs_content'] = content
-        logger.info("Stored original content in session")
+        session['file_metadata'] = metadata
+        logger.info("Stored original content and metadata in session")
         
         # If extraction is requested, extract requirements using LLMs
         if extract_requirements:
@@ -592,7 +614,8 @@ def upload_srs_file():
                     "extracted_requirements": extracted_requirements,
                     "requirements_count": requirements_count,
                     "context": context_result,
-                    "message": f"Successfully extracted {requirements_count} requirements from the document."
+                    "metadata": metadata,
+                    "message": f"Successfully extracted {requirements_count} requirements from the document using {metadata.get('processed_with', 'unknown')} processing."
                 })
                 
             except Exception as e:
@@ -603,8 +626,9 @@ def upload_srs_file():
                     "success": False,
                     "original_content": content,
                     "content": content,
+                    "metadata": metadata,
                     "error": f"Could not extract requirements: {str(e)}",
-                    "message": "Failed to extract requirements. Returning the original document content."
+                    "message": f"Failed to extract requirements. Returning the original document content processed with {metadata.get('processed_with', 'unknown')}."
                 })
         
         # If no extraction requested, just return the content
@@ -615,7 +639,8 @@ def upload_srs_file():
             "success": True,
             "original_content": content,
             "content": content,
-            "message": "File uploaded successfully."
+            "metadata": metadata,
+            "message": f"File uploaded and processed successfully using {metadata.get('processed_with', 'unknown')}."
         })
         
     except Exception as e:

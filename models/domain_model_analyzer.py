@@ -3,6 +3,8 @@ import logging
 import time
 import traceback
 import concurrent.futures
+import os
+from datetime import datetime
 from typing import List, Dict, Any
 
 from services.llm_adapters import get_adapter
@@ -42,9 +44,9 @@ class DomainModelAnalyzer:
         logger.info(f"Extracting requirements from SRS using {len(selected_models) if selected_models else 0} models")
         
         if not selected_models:
-            # Use Deepseek as fallback for backward compatibility
-            logger.warning("No models specified, falling back to DeepSeek")
-            selected_models = ["deepseek"]
+            # Use openai as fallback for backward compatibility
+            logger.warning("No models specified, falling back to openai")
+            selected_models = ["openai"]
         
         # Prompt for requirement extraction with detailed instructions
         prompt = """
@@ -263,34 +265,24 @@ class DomainModelAnalyzer:
         logger.info(f"Creating domain model using {len(selected_models) if selected_models else 0} models")
         
         if not selected_models:
-            # Use Deepseek as fallback for backward compatibility
-            logger.warning("No models specified, falling back to DeepSeek")
-            selected_models = ["deepseek"]
+            # Use openai as fallback for backward compatibility
+            logger.warning("No models specified, falling back to openai")
+            selected_models = ["openai"]
         
         # Simplify the prompt to reduce response size
         prompt = """
-You are an expert software architect. Create a MINIMAL domain model that ONLY includes elements EXPLICITLY mentioned in the requirements.
+You are an expert software architect. Create a domain model that ONLY includes elements mentioned in the requirements.
 
 STRICT RULES:
-1. ONLY include classes that are EXPLICITLY mentioned in the requirements
-2. ONLY include attributes that are EXPLICITLY mentioned for each class
-3. ONLY include methods that are EXPLICITLY mentioned for each class
-4. ONLY include relationships that are EXPLICITLY specified between classes
-5. DO NOT add any elements, attributes, or methods based on your own knowledge or assumptions
-6. DO NOT "complete" the model with what you think should be there
-7. If requirements are minimal, your domain model should be equally minimal
-8. NEVER invent or assume any elements not explicitly stated in the requirements
-
-REQUIREMENTS ANALYSIS:
-- Identify ONLY explicit nouns as potential classes
-- Identify ONLY explicit verbs or actions as potential methods
-- Identify ONLY explicit properties or characteristics as attributes
-- Identify ONLY explicit relationships between entities
-
-EXAMPLES:
-- If requirements mention "login page" only, create ONLY a LoginPage class with NO attributes or methods
-- If requirements say "user can login", add ONLY a login method, but NO username/password attributes unless explicitly mentioned
-- If requirements don't mention authentication, security, or validation, DO NOT include these elements
+1. do no add any elements, attributes, or methods based on your own knowledge or assumptions
+2. do not "complete" the model with what you think should be there, but rather but what's actually there 
+3. If requirements are minimal, your domain model should be equally minimal
+4. NEVER invent or assume any elements not stated in the requirements
+5. If a requirement mentions an entity, attribute, or relationship, it must be included in the domain model
+6. If a requirement mentions an operation, it must be included in the domain model
+7. If a requirement mentions a class, it must be included in the domain model
+8. If a requirement mentions an attribute, it must be included in the domain model
+9. If a requirement mentions a relationship, it must be included in the domain model
 
 FORMAT YOUR RESPONSE AS JSON with this structure:
 {
@@ -341,9 +333,9 @@ Here are the requirements:
         aggregator = ResultsAggregator(meta_model_id or "majority", model_weights)
         return aggregator.aggregate_domain_models(model_results)
     
-    def _create_domain_model_with_model(self, model_id, messages,model_weights=None):
+    def _create_domain_model_with_model(self, model_id, messages, model_weights=None):
         """
-        Generate a domain model using a specific LLM
+        Generate a domain model using a specific LLM with improved error handling
         
         Args:
             model_id (str): ID of the model to use
@@ -373,10 +365,37 @@ Here are the requirements:
                 logger.debug(f"Content length: {len(domain_model_json)}")
                 logger.debug(f"Content sample: {domain_model_json[:200]}...")
                 
-                # Try to parse and validate the JSON
+                # Save debug information for this attempt
+                self._save_domain_model_debug(
+                    model_id=model_id,
+                    attempt=attempt + 1,
+                    messages=messages,
+                    response_content=domain_model_json
+                )
+                
+                # Try to parse and validate the JSON with enhanced error handling
                 try:
-                    domain_model = extract_json_from_response(domain_model_json)
+                    from utils.json_utils import extract_json_from_response, validate_domain_model
+                    from utils.json_debug_utils import save_problematic_json, find_json_error_location, suggest_json_fixes
+                    
+                    domain_model = extract_json_from_response(domain_model_json, expected_top_level_keys=["classes", "relationships"])
                     if not domain_model:
+                        # Enhanced debugging for JSON parsing failures
+                        error_context = f"{model_id}_domain_model_attempt_{attempt+1}"
+                        debug_file = save_problematic_json(domain_model_json, "Failed to extract valid JSON", error_context)
+                        
+                        # Save debug info with error
+                        self._save_domain_model_debug(
+                            model_id=model_id,
+                            attempt=attempt + 1,
+                            messages=messages,
+                            response_content=domain_model_json,
+                            error="Failed to extract valid JSON"
+                        )
+                        
+                        logger.error(f"Failed to extract valid JSON from {model_id} domain model response")
+                        logger.error(f"Debug file saved: {debug_file}")
+                        
                         raise ValueError("Failed to extract valid JSON")
                     
                     # Validate and fix the domain model
@@ -385,7 +404,15 @@ Here are the requirements:
                     logger.info("Domain model successfully created")
                     logger.info(f"Model contains {len(domain_model.get('classes', []))} classes and {len(domain_model.get('relationships', []))} relationships")
                     
-                    # OpenAI's model doesn't provide reasoning_content like DeepSeek
+                    # Save successful debug info
+                    self._save_domain_model_debug(
+                        model_id=model_id,
+                        attempt=attempt + 1,
+                        messages=messages,
+                        response_content=domain_model_json,
+                        domain_model=domain_model
+                    )
+                    
                     reasoning_content = f"Domain model generated by {model_id}"
                     
                     return {
@@ -393,22 +420,73 @@ Here are the requirements:
                         "domain_model": domain_model,
                         "reasoning": reasoning_content
                     }
-                except Exception as e:
-                    logger.warning(f"Error processing domain model: {str(e)}")
                     
-                    # # Save the raw response for debugging
-                    # with open(f"log/raw_domain_model_response_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
-                    #     f.write(domain_model_json)
+                except json.JSONDecodeError as json_error:
+                    # Enhanced JSON error handling
+                    logger.error(f"JSON parsing error in {model_id} domain model response: {str(json_error)}")
+                    
+                    # Save debug information with JSON error
+                    self._save_domain_model_debug(
+                        model_id=model_id,
+                        attempt=attempt + 1,
+                        messages=messages,
+                        response_content=domain_model_json,
+                        error=f"JSON parsing error: {str(json_error)}"
+                    )
+                    
+                    # Save debug information
+                    error_context = f"{model_id}_domain_model_json_error_attempt_{attempt+1}"
+                    debug_file = save_problematic_json(domain_model_json, str(json_error), error_context)
+                    
+                    # Get detailed error analysis
+                    from utils.json_debug_utils import find_json_error_location, suggest_json_fixes
+                    error_info = find_json_error_location(domain_model_json, str(json_error))
+                    if error_info:
+                        logger.error(f"JSON error location: {error_info}")
+                        suggestions = suggest_json_fixes(domain_model_json, error_info)
+                        logger.error(f"Suggested fixes: {suggestions}")
                     
                     # If not the last attempt, try again
                     if attempt < self.max_retries - 1:
-                        logger.info(f"Retrying API call after error (attempt {attempt+1})")
+                        logger.info(f"Retrying domain model generation after JSON error (attempt {attempt+1})")
                         time.sleep(self.retry_delay)
                         continue
+                    else:
+                        logger.error(f"All JSON parsing attempts failed for {model_id} domain model")
+                        
+                except Exception as e:
+                    logger.warning(f"Error processing domain model: {str(e)}")
                     
+                    # Save debug information for any processing error
+                    self._save_domain_model_debug(
+                        model_id=model_id,
+                        attempt=attempt + 1,
+                        messages=messages,
+                        response_content=domain_model_json,
+                        error=f"Processing error: {str(e)}"
+                    )
+                    
+                    error_context = f"{model_id}_domain_model_processing_error_attempt_{attempt+1}"
+                    debug_file = save_problematic_json(domain_model_json, str(e), error_context)
+                    
+                    # If not the last attempt, try again
+                    if attempt < self.max_retries - 1:
+                        logger.info(f"Retrying domain model generation after processing error (attempt {attempt+1})")
+                        time.sleep(self.retry_delay)
+                        continue
+                        
             except Exception as e:
                 logger.error(f"{model_id} API request error (attempt {attempt+1}): {str(e)}")
                 logger.error(traceback.format_exc())
+                
+                # Save debug information for API errors
+                self._save_domain_model_debug(
+                    model_id=model_id,
+                    attempt=attempt + 1,
+                    messages=messages,
+                    response_content="",
+                    error=f"API request error: {str(e)}"
+                )
                 
                 # If not the last attempt, retry
                 if attempt < self.max_retries - 1:
@@ -418,6 +496,16 @@ Here are the requirements:
         
         # If all attempts failed, return a default domain model
         logger.error(f"All {model_id} API attempts failed. Returning default domain model")
+        
+        # Save final failure debug info
+        self._save_domain_model_debug(
+            model_id=model_id,
+            attempt="final_failure",
+            messages=messages,
+            response_content="",
+            error=f"All {model_id} API attempts failed"
+        )
+        
         return {
             "model_id": model_id,
             "domain_model": {
@@ -428,6 +516,7 @@ Here are the requirements:
             "error": f"All {model_id} API attempts failed",
             "reasoning": "Error occurred during model generation"
         }
+
     def extract_context_from_srs(self, srs_content, selected_models=None, meta_model_id=None):
         """
         Extract important contextual information from the SRS document,
@@ -502,8 +591,8 @@ Here are the requirements:
         logger.info(f"Detecting missing requirements using {len(selected_models) if selected_models else 0} models")
         
         if not selected_models:
-            logger.warning("No models specified, falling back to DeepSeek")
-            selected_models = ["deepseek"]
+            logger.warning("No models specified, falling back to openai")
+            selected_models = ["openai"]
         
         # Create a default response in case all API calls fail
         default_response = {
@@ -651,7 +740,7 @@ Here are the requirements:
                 
                 # Parse and validate the JSON
                 try:
-                    result = extract_json_from_response(result_json)
+                    result = extract_json_from_response(result_json, expected_top_level_keys=["missing_requirements"])
                     if not result:
                         raise ValueError("Failed to extract valid JSON")
                     
@@ -707,8 +796,8 @@ Here are the requirements:
         logger.info(f"Analyzing individual requirement completeness using {len(selected_models) if selected_models else 0} models")
         
         if not selected_models:
-            logger.warning("No models specified, falling back to DeepSeek")
-            selected_models = ["deepseek"]
+            logger.warning("No models specified, falling back to openai")
+            selected_models = ["openai"]
         
         # Create a default response in case all API calls fail
         default_response = {
@@ -803,7 +892,7 @@ Here are the requirements:
     
     def _analyze_requirement_completeness_with_model(self, model_id, messages, default_response, model_weights=None):
         """
-        Analyze requirement completeness using a specific LLM
+        Analyze requirement completeness using a specific LLM with improved error handling
         
         Args:
             model_id (str): ID of the model to use
@@ -833,15 +922,21 @@ Here are the requirements:
                 
                 logger.debug(f"Requirement completeness content sample: {result_json[:200]}...")
                 
-                # # Save raw response for debugging
-                # with open(f"log/raw_requirement_completeness_{model_id}_{attempt}.txt", "w", encoding="utf-8") as f:
-                #     f.write(result_json)
-                
-                # Parse and validate the JSON
+                # Parse and validate the JSON with improved error handling
                 try:
+                    from utils.json_utils import extract_json_from_response
+                    from utils.json_debug_utils import save_problematic_json, find_json_error_location, suggest_json_fixes
+                    
                     result = extract_json_from_response(result_json)
                     if not result:
-                        raise ValueError("Failed to extract valid JSON")
+                        # Enhanced debugging for JSON parsing failures
+                        error_context = f"{model_id}_requirement_completeness_attempt_{attempt+1}"
+                        debug_file = save_problematic_json(result_json, "Failed to extract valid JSON", error_context)
+                        
+                        logger.error(f"Failed to extract valid JSON from {model_id} response")
+                        logger.error(f"Debug file saved: {debug_file}")
+                        
+                        raise ValueError("Failed to extract valid JSON from response")
                     
                     # Ensure requirement_completeness key exists
                     if "requirement_completeness" not in result:
@@ -855,12 +950,40 @@ Here are the requirements:
                     
                     return result
                     
-                except Exception as e:
-                    logger.warning(f"Error processing requirement completeness: {str(e)}")
+                except json.JSONDecodeError as json_error:
+                    # Enhanced JSON error handling
+                    logger.error(f"JSON parsing error in {model_id} requirement completeness response: {str(json_error)}")
+                    
+                    # Save debug information
+                    error_context = f"{model_id}_requirement_completeness_json_error_attempt_{attempt+1}"
+                    debug_file = save_problematic_json(result_json, str(json_error), error_context)
+                    
+                    # Get detailed error analysis
+                    from utils.json_debug_utils import find_json_error_location, suggest_json_fixes
+                    error_info = find_json_error_location(result_json, str(json_error))
+                    if error_info:
+                        logger.error(f"JSON error location: {error_info}")
+                        suggestions = suggest_json_fixes(result_json, error_info)
+                        logger.error(f"Suggested fixes: {suggestions}")
                     
                     # If not the last attempt, retry
                     if attempt < self.max_retries - 1:
-                        logger.info(f"Retrying requirement completeness analysis after error (attempt {attempt+1})")
+                        logger.info(f"Retrying requirement completeness analysis after JSON error (attempt {attempt+1})")
+                        time.sleep(self.retry_delay)
+                        continue
+                    else:
+                        logger.error(f"All JSON parsing attempts failed for {model_id} requirement completeness")
+                        
+                except Exception as e:
+                    logger.warning(f"Error processing requirement completeness: {str(e)}")
+                    
+                    # Save debug information for any processing error
+                    error_context = f"{model_id}_requirement_completeness_processing_error_attempt_{attempt+1}"
+                    debug_file = save_problematic_json(result_json, str(e), error_context)
+                    
+                    # If not the last attempt, retry
+                    if attempt < self.max_retries - 1:
+                        logger.info(f"Retrying requirement completeness analysis after processing error (attempt {attempt+1})")
                         time.sleep(self.retry_delay)
                         continue
                 
@@ -870,7 +993,7 @@ Here are the requirements:
                 
                 # If not the last attempt, retry
                 if attempt < self.max_retries - 1:
-                    logger.info(f"Retrying requirement completeness analysis after error (waiting {self.retry_delay} seconds)")
+                    logger.info(f"Retrying requirement completeness analysis after API error (waiting {self.retry_delay} seconds)")
                     time.sleep(self.retry_delay)
                     continue
         
@@ -895,8 +1018,8 @@ Here are the requirements:
         logger.info(f"Analyzing requirements completeness using {len(selected_models) if selected_models else 0} models")
         
         if not selected_models:
-            logger.warning("No models specified, falling back to DeepSeek")
-            selected_models = ["deepseek"]
+            logger.warning("No models specified, falling back to openai")
+            selected_models = ["openai"]
         
         # Step 1: Get missing requirements
         missing_requirements_result = self.detect_missing_requirements(
@@ -1051,7 +1174,7 @@ Here are the requirements:
                 
                 # Attempt to parse and validate the JSON
                 try:
-                    analysis = extract_json_from_response(analysis_json)
+                    analysis = extract_json_from_response(analysis_json, expected_top_level_keys=["requirement_issues", "domain_model_issues"])
                     if not analysis:
                         raise ValueError("Failed to extract valid JSON")
                     
@@ -1126,9 +1249,9 @@ Here are the requirements:
         logger.info(f"Updating domain model with {len(accepted_changes)} accepted changes using {len(selected_models) if selected_models else 0} models")
         
         if not selected_models:
-            # Use Deepseek as fallback for backward compatibility
-            logger.warning("No models specified, falling back to DeepSeek")
-            selected_models = ["deepseek"]
+            # Use openai as fallback for backward compatibility
+            logger.warning("No models specified, falling back to openai")
+            selected_models = ["openai"]
         
         if not accepted_changes:
             return domain_model
@@ -1316,3 +1439,45 @@ Here are the requirements:
                     logger.error(traceback.format_exc())
         
         return results
+    
+    def _save_domain_model_debug(self, model_id, attempt, messages, response_content, domain_model=None, error=None):
+        """
+        Save debug information for domain model creation
+        
+        Args:
+            model_id (str): ID of the model used
+            attempt (int): Attempt number
+            messages (list): Messages sent to the LLM
+            response_content (str): Full response from the LLM
+            domain_model (dict): Parsed domain model (if successful)
+            error (str): Error message (if failed)
+        """
+        try:
+            # Create debug directory if it doesn't exist
+            debug_dir = "log/domain_model_debug"
+            os.makedirs(debug_dir, exist_ok=True)
+            
+            # Create timestamp for filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Create debug data structure
+            debug_data = {
+                "model_id": model_id,
+                "attempt": attempt,
+                "timestamp": timestamp,
+                "messages_sent": messages,
+                "full_response": response_content,
+                "parsed_domain_model": domain_model,
+                "error": error,
+                "content_length": len(response_content) if response_content else 0
+            }
+            
+            # Save to file
+            filename = f"{debug_dir}/domain_model_{model_id}_attempt_{attempt}_{timestamp}.json"
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(debug_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Domain model debug data saved to: {filename}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save domain model debug data: {str(e)}")

@@ -1,0 +1,853 @@
+{
+  "domain_model": {
+    "classes": [
+      {
+        "name": "System",
+        "attributes": [],
+        "methods": [
+          {
+            "name": "serviceTriggersOrStimuli",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Service triggers or stimuli in no more than 500 milliseconds"
+          },
+          {
+            "name": "acceptUserInput",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Accept user input for various system configurations"
+          },
+          {
+            "name": "sendNotifications",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Send notifications to users for various events"
+          },
+          {
+            "name": "monitorDevices",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Monitor various devices and sensors throughout the system"
+          },
+          {
+            "name": "controlDevices",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Control various devices and appliances"
+          },
+          {
+            "name": "generateReports",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Generate reports for users on various system data"
+          }
+        ],
+        "description": "Main smart home system that orchestrates all functionality"
+      },
+      {
+        "name": "Zone",
+        "attributes": [
+          {
+            "name": "temperatureSettings",
+            "type": "TemperatureSettings",
+            "description": "Desired temperature settings for no less than four periods in the day"
+          }
+        ],
+        "methods": [],
+        "description": "Heating and cooling zone within the smart home"
+      },
+      {
+        "name": "Show",
+        "attributes": [],
+        "methods": [],
+        "description": "Television show that can be recorded"
+      },
+      {
+        "name": "Playlist",
+        "attributes": [
+          {
+            "name": "name",
+            "type": "String",
+            "description": "Name of the playlist set by user"
+          },
+          {
+            "name": "description",
+            "type": "String",
+            "description": "Description of the playlist set by user"
+          }
+        ],
+        "methods": [],
+        "description": "Music playlist consisting of one to N tracks from digital library"
+      },
+      {
+        "name": "Track",
+        "attributes": [],
+        "methods": [],
+        "description": "Music track that can reside in multiple playlists but not more than once per playlist"
+      },
+      {
+        "name": "Pet",
+        "attributes": [
+          {
+            "name": "rfidTag",
+            "type": "String",
+            "description": "RFID tag worn on collar for identification"
+          }
+        ],
+        "methods": [],
+        "description": "Household pet with monitored health and consumption data"
+      },
+      {
+        "name": "Recipe",
+        "attributes": [
+          {
+            "name": "category",
+            "type": "String",
+            "description": "Category defined by user for recipe organization"
+          },
+          {
+            "name": "imageFile",
+            "type": "String",
+            "description": "Optional image file linked to the recipe"
+          }
+        ],
+        "methods": [],
+        "description": "Cooking recipe with categories and optional image"
+      },
+      {
+        "name": "MailBox",
+        "attributes": [
+          {
+            "name": "greetingMessage",
+            "type": "String",
+            "description": "Greeting message played for individual mail box"
+          }
+        ],
+        "methods": [],
+        "description": "Phone mail box for message recipients"
+      }
+    ],
+    "relationships": [
+      {
+        "source": "System",
+        "target": "Zone",
+        "type": "composition",
+        "sourceMultiplicity": "1",
+        "targetMultiplicity": "1..*",
+        "description": "Smart home system divides house into heating and cooling zones"
+      },
+      {
+        "source": "Playlist",
+        "target": "Track",
+        "type": "aggregation",
+        "sourceMultiplicity": "1",
+        "targetMultiplicity": "1..*",
+        "description": "Playlist consists of tracks selected from digital library; tracks may reside in multiple playlists but not more than once per playlist"
+      }
+    ],
+    "plantuml": "@startuml\nclass System {\n  +serviceTriggersOrStimuli()\n  +acceptUserInput()\n  +sendNotifications()\n  +monitorDevices()\n  +controlDevices()\n  +generateReports()\n}\n\nclass Zone {\n  -temperatureSettings : TemperatureSettings\n}\n\nclass Show {\n}\n\nclass Playlist {\n  -name : String\n  -description : String\n}\n\nclass Track {\n}\n\nclass Pet {\n  -rfidTag : String\n}\n\nclass Recipe {\n  -category : String\n  -imageFile : String\n}\n\nclass MailBox {\n  -greetingMessage : String\n}\n\nSystem ||--o{ Zone : \"divides into\"\nPlaylist }o--o{ Track : \"contains\"\n@enduml"
+  },
+  "analysis": {
+    "requirement_issues": [
+      {
+        "requirement_id": "REQ-001",
+        "requirement_text": "System shall operate on a system capable of multi-processing.",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "SHOULD FIX",
+            "description": "The term 'multi-processing' is vague. It's unclear whether this refers to multiple CPU cores, multiple processes, parallel processing capabilities, or concurrent task execution.",
+            "suggested_fix": "Specify the minimum number of concurrent processes/threads required and the type of multi-processing needed (e.g., 'System shall operate on hardware capable of executing at least 10 concurrent processes with multi-core CPU support').",
+            "affected_model_elements": [
+              "System"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-002",
+        "requirement_text": "System shall operate on a system capable of near-real time execution of instructions.",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "SHOULD FIX",
+            "description": "The term 'near-real time' is subjective and not measurable. It conflicts with the specific 500ms requirement in REQ-003.",
+            "suggested_fix": "Define specific timing constraints or reference REQ-003's 500ms requirement for consistency.",
+            "affected_model_elements": [
+              "System"
+            ]
+          },
+          {
+            "issue_type": "Conflict",
+            "severity": "SHOULD FIX",
+            "description": "This requirement conflicts with REQ-003 which specifies exactly 500ms. 'Near-real time' could be interpreted differently.",
+            "suggested_fix": "Align with REQ-003's specific timing or provide a clear definition of 'near-real time'.",
+            "affected_model_elements": [
+              "System"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-011",
+        "requirement_text": "SH system shall be usable by those with slight eye loss.",
+        "issues": [
+          {
+            "issue_type": "Inconsistency",
+            "severity": "SHOULD FIX",
+            "description": "Uses 'SH system' instead of 'System' which is used consistently throughout other requirements.",
+            "suggested_fix": "Change to 'System' for consistency with other requirements.",
+            "affected_model_elements": [
+              "System"
+            ]
+          },
+          {
+            "issue_type": "Ambiguity",
+            "severity": "SHOULD FIX",
+            "description": "The term 'slight eye loss' is vague and not medically precise.",
+            "suggested_fix": "Define specific visual impairment levels or reference accessibility standards (e.g., 'System shall comply with WCAG 2.1 AA accessibility guidelines').",
+            "affected_model_elements": [
+              "System"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-017",
+        "requirement_text": "System shall be easy to use.",
+        "issues": [
+          {
+            "issue_type": "Testability",
+            "severity": "MUST FIX",
+            "description": "The requirement is not testable as 'easy to use' is subjective and cannot be measured objectively.",
+            "suggested_fix": "Define measurable usability criteria such as 'System shall allow users to complete 90% of common tasks within 3 clicks/touches' or reference REQ-018's training requirement.",
+            "affected_model_elements": [
+              "System"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-036",
+        "requirement_text": "System shall accept user input for dangerous levels of smoke and carbon dioxide.",
+        "issues": [
+          {
+            "issue_type": "Inconsistency",
+            "severity": "SHOULD FIX",
+            "description": "Uses 'carbon dioxide' but REQ-038 mentions 'carbon monoxide' which is the dangerous gas typically monitored in homes.",
+            "suggested_fix": "Change to 'carbon monoxide' to be consistent with REQ-038 and correct safety practice.",
+            "affected_model_elements": [
+              "System"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-047",
+        "requirement_text": "SH shall be divided up into zones for heating and cooling.",
+        "issues": [
+          {
+            "issue_type": "Inconsistency",
+            "severity": "SHOULD FIX",
+            "description": "Uses 'SH' instead of 'System' which is used consistently throughout other requirements.",
+            "suggested_fix": "Change to 'System' for consistency with other requirements.",
+            "affected_model_elements": [
+              "System",
+              "Zone"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-118",
+        "requirement_text": "System shall not record any new shows if there is space available for recovery.",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "This requirement appears to have reversed logic. It suggests not recording when space IS available, which doesn't make sense.",
+            "suggested_fix": "Clarify the logic: 'System shall not record any new shows if there is NO space available for recovery' or define what 'recovery' means in this context.",
+            "affected_model_elements": [
+              "System",
+              "Show"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-207",
+        "requirement_text": "Coffee maker shall stop within 1 microsecond when button is pressed.",
+        "issues": [
+          {
+            "issue_type": "Implementation",
+            "severity": "MUST FIX",
+            "description": "1 microsecond response time is technically infeasible for a physical coffee maker device. This is an unrealistic hardware constraint.",
+            "suggested_fix": "Use a realistic timeframe such as '1 second' or '500 milliseconds' that is achievable with physical hardware.",
+            "affected_model_elements": [
+              "System"
+            ]
+          }
+        ]
+      }
+    ],
+    "domain_model_issues": [
+      {
+        "element_type": "Class",
+        "element_name": "System",
+        "issue_type": "Incomplete",
+        "severity": "MUST FIX",
+        "description": "The System class is too generic and lacks specific attributes needed to support the extensive functionality described in requirements. It only has methods but no state attributes.",
+        "suggested_fix": "Add attributes such as configurations, user preferences, device registry, notification settings, and system state tracking.",
+        "affected_requirements": [
+          "REQ-001",
+          "REQ-002",
+          "REQ-003",
+          "REQ-028",
+          "REQ-033"
+        ]
+      },
+      {
+        "element_type": "Class",
+        "element_name": "Show",
+        "issue_type": "Incomplete",
+        "severity": "MUST FIX",
+        "description": "The Show class is empty but requirements specify extensive TV recording functionality requiring attributes like title, channel, time, duration, quality settings, etc.",
+        "suggested_fix": "Add attributes: title, channel, startTime, duration, isRecording, quality, series information, and recording preferences.",
+        "affected_requirements": [
+          "REQ-102",
+          "REQ-103",
+          "REQ-107",
+          "REQ-108",
+          "REQ-111",
+          "REQ-112"
+        ]
+      },
+      {
+        "element_type": "Class",
+        "element_name": "Track",
+        "issue_type": "Incomplete",
+        "severity": "MUST FIX",
+        "description": "The Track class is empty but requirements specify digital audio library functionality requiring metadata attributes.",
+        "suggested_fix": "Add attributes: title, artist, album, genre, duration, fileSize, format, and metadata for searchability.",
+        "affected_requirements": [
+          "REQ-132",
+          "REQ-134",
+          "REQ-139",
+          "REQ-140",
+          "REQ-142"
+        ]
+      },
+      {
+        "element_type": "Class",
+        "element_name": "Pet",
+        "issue_type": "Incomplete",
+        "severity": "SHOULD FIX",
+        "description": "The Pet class only has RFID tag but requirements specify extensive pet monitoring including health, weight, food consumption, and vaccination tracking.",
+        "suggested_fix": "Add attributes: name, weight, healthData, foodConsumption, vaccinationSchedule, and waterConsumption.",
+        "affected_requirements": [
+          "REQ-169",
+          "REQ-180",
+          "REQ-192",
+          "REQ-195",
+          "REQ-196"
+        ]
+      },
+      {
+        "element_type": "Class",
+        "element_name": "Recipe",
+        "issue_type": "Incomplete",
+        "severity": "SHOULD FIX",
+        "description": "The Recipe class lacks essential attributes like ingredients, instructions, and nutritional information required by the recipe system requirements.",
+        "suggested_fix": "Add attributes: ingredients list, instructions, prepTime, cookTime, servings, and nutritional information.",
+        "affected_requirements": [
+          "REQ-288",
+          "REQ-290",
+          "REQ-292",
+          "REQ-293"
+        ]
+      },
+      {
+        "element_type": "Class",
+        "element_name": "Missing User Class",
+        "issue_type": "Missing",
+        "severity": "MUST FIX",
+        "description": "No User class exists but requirements extensively reference user input, preferences, authentication, and multi-user scenarios.",
+        "suggested_fix": "Create User class with attributes: username, preferences, biometricData, accessCodes, and relationships to various system configurations.",
+        "affected_requirements": [
+          "REQ-077",
+          "REQ-089",
+          "REQ-261",
+          "REQ-303",
+          "REQ-305"
+        ]
+      },
+      {
+        "element_type": "Class",
+        "element_name": "Missing Device Classes",
+        "issue_type": "Missing",
+        "severity": "MUST FIX",
+        "description": "No device classes exist but requirements specify control of numerous devices like cameras, sensors, appliances, irrigation systems, etc.",
+        "suggested_fix": "Create device hierarchy with classes like Camera, Sensor, Appliance, IrrigationDevice, and base Device class.",
+        "affected_requirements": [
+          "REQ-094",
+          "REQ-098",
+          "REQ-224",
+          "REQ-234",
+          "REQ-254"
+        ]
+      },
+      {
+        "element_type": "Relationship",
+        "element_name": "System to Pet",
+        "issue_type": "Missing",
+        "severity": "SHOULD FIX",
+        "description": "No relationship exists between System and Pet classes, but the system extensively monitors and manages pets.",
+        "suggested_fix": "Add composition relationship from System to Pet with multiplicity 1 to many.",
+        "affected_requirements": [
+          "REQ-167",
+          "REQ-169",
+          "REQ-173",
+          "REQ-191"
+        ]
+      },
+      {
+        "element_type": "Relationship",
+        "element_name": "System to Show",
+        "issue_type": "Missing",
+        "severity": "SHOULD FIX",
+        "description": "No relationship exists between System and Show classes, but the system records and manages TV shows.",
+        "suggested_fix": "Add composition relationship from System to Show with multiplicity 1 to many for recorded shows.",
+        "affected_requirements": [
+          "REQ-102",
+          "REQ-104",
+          "REQ-115",
+          "REQ-125"
+        ]
+      },
+      {
+        "element_type": "Relationship",
+        "element_name": "System to Recipe",
+        "issue_type": "Missing",
+        "severity": "SHOULD FIX",
+        "description": "No relationship exists between System and Recipe classes, but the system manages a recipe center.",
+        "suggested_fix": "Add composition relationship from System to Recipe with multiplicity 1 to many for recipe management.",
+        "affected_requirements": [
+          "REQ-288",
+          "REQ-291",
+          "REQ-295"
+        ]
+      }
+    ],
+    "missing_requirements": [
+      {
+        "id": "MR1",
+        "description": "Zone identification and management capabilities",
+        "category": "Functional - Zone Management",
+        "severity": "CRITICAL",
+        "suggested_requirement": "System shall allow users to create, name, and identify individual heating/cooling zones within the house. Each zone shall have a unique identifier and human-readable name for configuration and reporting purposes.",
+        "affected_model_elements": [
+          "Zone"
+        ],
+        "rationale": "REQ-048 references 'each zone' for temperature settings, but the Zone class lacks any identification attributes. Without zone identification, users cannot distinguish between multiple zones or configure them individually."
+      },
+      {
+        "id": "MR2",
+        "description": "User entity and authentication management",
+        "category": "Functional - User Management",
+        "severity": "CRITICAL",
+        "suggested_requirement": "System shall support user registration, authentication, and profile management. Each user shall have a unique identifier, credentials, and personal preferences for system configuration.",
+        "affected_model_elements": [
+          "System",
+          "Playlist",
+          "Recipe",
+          "MailBox",
+          "Pet"
+        ],
+        "rationale": "Over 100 requirements reference 'users' but no User entity exists in the domain model. Users own playlists, recipes, mailboxes, and pets, but there's no way to establish ownership or manage user accounts."
+      },
+      {
+        "id": "MR3",
+        "description": "Television show metadata storage and management",
+        "category": "Functional - Media Management",
+        "severity": "HIGH",
+        "suggested_requirement": "System shall store and manage television show metadata including title, description, channel, air time, duration, genre, and episode information for recorded shows.",
+        "affected_model_elements": [
+          "Show"
+        ],
+        "rationale": "REQ-102-119 extensively discuss recording and managing shows, and REQ-103 mentions a TV guide interface, but the Show class has no attributes to store show information needed for these functions."
+      },
+      {
+        "id": "MR4",
+        "description": "Music track metadata storage and management",
+        "category": "Functional - Media Management",
+        "severity": "HIGH",
+        "suggested_requirement": "System shall store and manage music track metadata including title, artist, album, duration, genre, file format, file size, and quality information for digital audio library management.",
+        "affected_model_elements": [
+          "Track"
+        ],
+        "rationale": "REQ-134 mentions collecting metadata from CDs, REQ-139-142 discuss searchable track information by genre/artist/album, but the Track class has no attributes to store this essential metadata."
+      },
+      {
+        "id": "MR5",
+        "description": "Pet identification and registration beyond RFID",
+        "category": "Functional - Pet Management",
+        "severity": "MEDIUM",
+        "suggested_requirement": "System shall store pet identification information including name, type/species, breed, age, owner, and registration date to support comprehensive pet management and reporting.",
+        "affected_model_elements": [
+          "Pet"
+        ],
+        "rationale": "REQ-167-198 discuss comprehensive pet care including feeding, health monitoring, and reporting, but Pet class only has rfidTag. Human-readable identification is needed for user interfaces and reports."
+      },
+      {
+        "id": "MR6",
+        "description": "Recipe content storage beyond category and image",
+        "category": "Functional - Recipe Management",
+        "severity": "HIGH",
+        "suggested_requirement": "System shall store complete recipe information including title, ingredients list, step-by-step instructions, preparation time, cooking time, serving size, and difficulty level.",
+        "affected_model_elements": [
+          "Recipe"
+        ],
+        "rationale": "REQ-299-300 describe assisted baking mode that verbalizes ingredients and steps, and REQ-288-296 discuss recipe entry and management, but Recipe class only has category and imageFile attributes."
+      },
+      {
+        "id": "MR7",
+        "description": "MailBox identification and recipient assignment",
+        "category": "Functional - Communication",
+        "severity": "MEDIUM",
+        "suggested_requirement": "System shall assign unique identifiers and recipient information to each mailbox, including mailbox name, assigned user/recipient, and capacity limits.",
+        "affected_model_elements": [
+          "MailBox"
+        ],
+        "rationale": "REQ-303 mentions 'any number of phone mail boxes for recipients' and REQ-307 discusses notifying users about their mailbox, but MailBox class only has greetingMessage with no recipient identification."
+      },
+      {
+        "id": "MR8",
+        "description": "Current temperature monitoring per zone",
+        "category": "Functional - HVAC Management",
+        "severity": "HIGH",
+        "suggested_requirement": "System shall continuously monitor and store current temperature readings for each zone to enable temperature control and reporting functionality.",
+        "affected_model_elements": [
+          "Zone"
+        ],
+        "rationale": "REQ-048-056 discuss temperature control and REQ-050 mentions temperature adjustments, but Zone class only stores desired settings without current temperature monitoring capability."
+      },
+      {
+        "id": "MR9",
+        "description": "System error handling and recovery procedures",
+        "category": "Non-Functional - Reliability",
+        "severity": "CRITICAL",
+        "suggested_requirement": "System shall implement comprehensive error handling, logging, and automatic recovery procedures for all major system operations including device communication failures, sensor malfunctions, and network connectivity issues.",
+        "affected_model_elements": [
+          "System"
+        ],
+        "rationale": "The system controls critical home functions (security, HVAC, water, etc.) but no requirements specify error handling. REQ-005 mentions database failover but doesn't address operational error recovery."
+      },
+      {
+        "id": "MR10",
+        "description": "Data encryption and secure storage",
+        "category": "Non-Functional - Security",
+        "severity": "CRITICAL",
+        "suggested_requirement": "System shall encrypt all stored personal data including user profiles, biometric data, security codes, and personal preferences using industry-standard encryption methods both at rest and in transit.",
+        "affected_model_elements": [
+          "System",
+          "MailBox",
+          "Pet"
+        ],
+        "rationale": "The system stores sensitive biometric data, security codes, and personal information (REQ-076-089) but no requirements address data encryption or secure storage, which is critical for smart home systems."
+      },
+      {
+        "id": "MR11",
+        "description": "Device registration and management",
+        "category": "Functional - Device Management",
+        "severity": "HIGH",
+        "suggested_requirement": "System shall provide functionality to register, configure, monitor status, and manage all connected devices including sensors, appliances, cameras, and controllers with device identification, type, location, and operational status.",
+        "affected_model_elements": [
+          "System"
+        ],
+        "rationale": "Requirements mention controlling numerous devices (REQ-004, REQ-057-061, etc.) but no Device entity exists and no requirements specify device management capabilities needed to support these functions."
+      },
+      {
+        "id": "MR12",
+        "description": "System configuration backup and restore",
+        "category": "Non-Functional - Data Management",
+        "severity": "HIGH",
+        "suggested_requirement": "System shall provide functionality to backup and restore all user configurations, preferences, and custom settings to enable system recovery and migration capabilities.",
+        "affected_model_elements": [
+          "System"
+        ],
+        "rationale": "REQ-006 mentions backup of 'configuration data' but doesn't specify what configuration data is included or how restoration works. The complex system has extensive user customization that needs backup protection."
+      }
+    ],
+    "requirement_completeness": [
+      {
+        "requirement_id": "REQ-001",
+        "requirement_text": "System shall operate on a system capable of multi-processing.",
+        "completeness_score": 38,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version",
+          "condition",
+          "quality_attributes"
+        ],
+        "suggested_improvement": "REQ-001: [Priority: High] The System shall operate on a multi-core processor system with a minimum of 4 CPU cores and 8GB RAM to support concurrent processing of smart home operations. [Rationale: Required to handle simultaneous device monitoring, user requests, and automated processes] [Acceptance Criteria: System can process at least 100 concurrent device requests without performance degradation]",
+        "rationale": "Current requirement is too vague about what 'multi-processing capable' means. Needs specific hardware specifications, performance criteria, and justification."
+      },
+      {
+        "requirement_id": "REQ-003",
+        "requirement_text": "System shall service triggers or stimuli in no more than 500 milliseconds.",
+        "completeness_score": 54,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "dependencies",
+          "version",
+          "condition"
+        ],
+        "suggested_improvement": "REQ-003: [Priority: High] When any sensor trigger or user input stimulus is received, the System shall initiate response processing within 500 milliseconds under normal operating conditions. [Rationale: Ensures responsive user experience and timely safety responses] [Dependencies: REQ-001, REQ-002]",
+        "rationale": "Good performance specification but needs context about when this applies, why this timing is important, and what other requirements it depends on."
+      },
+      {
+        "requirement_id": "REQ-010",
+        "requirement_text": "If system supports recording more than three television shows simultaneously, then system shall have separate video recorder.",
+        "completeness_score": 62,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version",
+          "quality_attributes"
+        ],
+        "suggested_improvement": "REQ-010: [Priority: Medium] If the System is configured to support recording more than three television shows simultaneously, then the System shall include a dedicated video recording processor with minimum 2TB storage capacity. [Rationale: Prevents performance degradation of main system] [Acceptance Criteria: Can record 4+ shows without impacting other system functions]",
+        "rationale": "Good conditional logic but needs specific acceptance criteria for what constitutes a 'separate video recorder' and its minimum capabilities."
+      },
+      {
+        "requirement_id": "REQ-017",
+        "requirement_text": "System shall be easy to use.",
+        "completeness_score": 31,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version",
+          "condition",
+          "quality_attributes"
+        ],
+        "suggested_improvement": "REQ-017: [Priority: High] The System's user interfaces shall enable users to complete common tasks (temperature adjustment, lighting control, security activation) within 3 steps and without referring to documentation. [Rationale: Ensures user adoption and satisfaction] [Acceptance Criteria: 90% of users can complete basic tasks within 3 interface steps after 30 minutes of initial use]",
+        "rationale": "Extremely vague requirement. 'Easy to use' is subjective and not testable. Needs specific, measurable usability criteria."
+      },
+      {
+        "requirement_id": "REQ-025",
+        "requirement_text": "System shall have the option to send notifications to users when water filtration unit needs cleaning.",
+        "completeness_score": 46,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version",
+          "quality_attributes"
+        ],
+        "suggested_improvement": "REQ-025: [Priority: Medium] When the water filtration unit's flow rate drops below 80% of normal capacity, the System shall send configurable notifications (email, SMS, mobile app) to designated users. [Rationale: Ensures water quality and system maintenance] [Acceptance Criteria: Notification sent within 1 hour of detection, users can configure notification preferences]",
+        "rationale": "Needs specific trigger conditions for when notifications are sent and what notification methods are supported."
+      },
+      {
+        "requirement_id": "REQ-047",
+        "requirement_text": "SH shall be divided up into zones for heating and cooling.",
+        "completeness_score": 46,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version",
+          "quality_attributes"
+        ],
+        "suggested_improvement": "REQ-047: [Priority: High] The Smart Home system shall support a minimum of 4 independently controllable HVAC zones, each with separate temperature sensors and controls. [Rationale: Enables energy efficiency and personalized comfort] [Acceptance Criteria: Each zone can maintain temperature within \u00b12\u00b0F of setpoint independently]",
+        "rationale": "Needs to specify minimum number of zones, how they are controlled independently, and performance criteria for zone control."
+      },
+      {
+        "requirement_id": "REQ-076",
+        "requirement_text": "System shall have biometric and keypad door locks for all points of entry into the house.",
+        "completeness_score": 54,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version"
+        ],
+        "suggested_improvement": "REQ-076: [Priority: High] All external entry points (front door, back door, garage entry) shall be equipped with dual-authentication door locks supporting both biometric (fingerprint) and numeric keypad entry methods. [Rationale: Provides secure, convenient access control] [Acceptance Criteria: Locks authenticate within 3 seconds, support minimum 50 fingerprints and 20 access codes] [Dependencies: REQ-079]",
+        "rationale": "Needs to specify which biometric types, number of supported users, authentication timing, and relationship to entry logging requirements."
+      },
+      {
+        "requirement_id": "REQ-102",
+        "requirement_text": "System shall allow user to record any show on television.",
+        "completeness_score": 46,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version",
+          "quality_attributes"
+        ],
+        "suggested_improvement": "REQ-102: [Priority: Medium] The System shall provide users the capability to schedule recording of any television program from available channels with minimum 7-day advance scheduling. [Rationale: Enables time-shifted viewing] [Acceptance Criteria: Recording starts/stops within 30 seconds of scheduled time, supports all subscription channels] [Dependencies: REQ-104, REQ-105]",
+        "rationale": "Needs clarification on recording capabilities, storage implications, scheduling limitations, and integration with other recording requirements."
+      },
+      {
+        "requirement_id": "REQ-158",
+        "requirement_text": "Playlist shall consist of one to \"N\" number of tracks selected from the digital library.",
+        "completeness_score": 54,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version"
+        ],
+        "suggested_improvement": "REQ-158: [Priority: Medium] Each user-created Playlist shall contain a minimum of 1 and maximum of 1000 tracks selected from the digital audio library. [Rationale: Provides flexible music organization while preventing system performance issues] [Acceptance Criteria: Playlist creation interface enforces limits, system maintains performance with maximum-size playlists] [Dependencies: REQ-157, REQ-160]",
+        "rationale": "The 'N' is undefined and could cause system performance issues. Needs specific maximum limits and performance considerations."
+      },
+      {
+        "requirement_id": "REQ-184",
+        "requirement_text": "Pets shall wear RFID tags on their collars.",
+        "completeness_score": 42,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version",
+          "quality_attributes"
+        ],
+        "suggested_improvement": "REQ-184: [Priority: Medium] Each registered pet shall wear a unique passive RFID tag (125kHz or 134kHz) on their collar for system identification purposes. [Rationale: Enables personalized feeding and monitoring per pet] [Acceptance Criteria: RFID tags readable from 6-inch distance, unique ID per pet, waterproof rating IPX7] [Dependencies: REQ-185, REQ-192]",
+        "rationale": "Needs RFID specifications, read range requirements, durability requirements, and connection to system functionality."
+      },
+      {
+        "requirement_id": "REQ-280",
+        "requirement_text": "System shall allow users to enter food associated with RFID tag into the kitchen inventory system.",
+        "completeness_score": 54,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version"
+        ],
+        "suggested_improvement": "REQ-280: [Priority: Medium] The System shall provide a user interface (touchscreen, mobile app, web) to associate food items with RFID tags and add them to the kitchen inventory database with expiration dates and quantities. [Rationale: Enables automated inventory tracking] [Acceptance Criteria: Interface supports barcode scanning, manual entry, automatic expiration alerts] [Dependencies: REQ-281, REQ-283]",
+        "rationale": "Needs specification of user interface types, what data is captured beyond RFID association, and integration with inventory management features."
+      },
+      {
+        "requirement_id": "REQ-301",
+        "requirement_text": "System shall serve as answering machine for household.",
+        "completeness_score": 46,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version",
+          "quality_attributes"
+        ],
+        "suggested_improvement": "REQ-301: [Priority: Medium] The System shall provide integrated answering machine functionality supporting voice message recording, playback, and notification for the household's primary phone line. [Rationale: Consolidates communication management] [Acceptance Criteria: Supports minimum 100 messages, 30 seconds to 5 minutes per message, integration with notification system] [Dependencies: REQ-302, REQ-303]",
+        "rationale": "Needs specifications for message capacity, recording duration limits, audio quality requirements, and integration with phone system."
+      },
+      {
+        "requirement_id": "REQ-310",
+        "requirement_text": "System shall provide wireless support for driving any number of wall-mounted monitors for picture display.",
+        "completeness_score": 50,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version"
+        ],
+        "suggested_improvement": "REQ-310: [Priority: Low] The System shall support wireless connectivity (WiFi 802.11ac minimum) to drive up to 10 wall-mounted displays for photo slideshow functionality with minimum 1080p resolution. [Rationale: Enables distributed digital photo display] [Acceptance Criteria: Simultaneous display on multiple monitors, <2 second image refresh, 30-foot wireless range] [Dependencies: REQ-311, REQ-314]",
+        "rationale": "Unlimited 'any number' could cause performance issues. Needs specific limits, wireless specifications, resolution requirements, and performance criteria."
+      },
+      {
+        "requirement_id": "REQ-318",
+        "requirement_text": "System shall monitor any number of mail and newspaper boxes for motion and weight.",
+        "completeness_score": 54,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version"
+        ],
+        "suggested_improvement": "REQ-318: [Priority: Low] The System shall monitor up to 5 mail/newspaper boxes using motion sensors and weight sensors to detect delivery events with 95% accuracy. [Rationale: Provides delivery notifications for security] [Acceptance Criteria: Detects weight change >0.5 oz, motion sensitivity configurable, weatherproof sensors] [Dependencies: REQ-319, REQ-320]",
+        "rationale": "Unlimited 'any number' needs practical limits. Requires sensor accuracy specifications, environmental requirements, and detection thresholds."
+      },
+      {
+        "requirement_id": "REQ-322",
+        "requirement_text": "System shall permit user to query the status of any of the boxes.",
+        "completeness_score": 50,
+        "missing_elements": [
+          "priority",
+          "rationale",
+          "source",
+          "status",
+          "acceptance_criteria",
+          "dependencies",
+          "version"
+        ],
+        "suggested_improvement": "REQ-322: [Priority: Low] The System shall provide user interface (mobile app, web, voice command) to query the current status (empty/has-mail, last delivery time) of any monitored mail/newspaper box. [Rationale: Enables remote monitoring of deliveries] [Acceptance Criteria: Response time <3 seconds, status accuracy 95%, multiple query methods] [Dependencies: REQ-318, REQ-319]",
+        "rationale": "Needs specification of query interface types, what status information is provided, response time requirements, and data accuracy."
+      }
+    ]
+  },
+  "uml_image": "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",
+  "reasoning": {
+    "domain_model": "Domain model generated by claude",
+    "analysis": "Analysis generated by claude"
+  },
+  "aggregation_info": {
+    "domain_model": {},
+    "analysis": {}
+  },
+  "debug_info": {
+    "selected_models": [
+      "claude"
+    ],
+    "meta_model_id": "majority",
+    "requirements_length": 30749,
+    "domain_model_present": true,
+    "uml_image_present": true,
+    "analysis_present": true
+  }
+}

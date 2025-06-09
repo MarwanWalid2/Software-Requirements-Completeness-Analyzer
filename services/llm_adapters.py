@@ -1,9 +1,10 @@
 import logging
 import json
-import time
 import traceback
 from services.llm_client_factory import LLMClientFactory
-
+import time
+from datetime import datetime, timezone
+import anthropic
 logger = logging.getLogger(__name__)
 
 class LLMAdapterBase:
@@ -113,16 +114,27 @@ class OpenAIAdapter(LLMAdapterBase):
 
 class ClaudeAdapter(LLMAdapterBase):
     """Adapter for Claude/Anthropic LLM"""
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.rate_limit_reset_time = None
     
     def generate_response(self, messages, temperature=1.0):
         """Generate a response from Claude LLM"""
         logger.info(f"Generating response from Claude model: {self.model_name}")
         
         # Claude Sonnet 4 supports up to 64k output tokens
-        # Much larger context window and thinking capabilities
         max_tokens = 64000
         thinking_budget = 63999  
         
+        # Check if we need to wait for rate limit reset
+        if self.rate_limit_reset_time:
+            current_time = datetime.now(timezone.utc)
+            if current_time < self.rate_limit_reset_time:
+                wait_time = (self.rate_limit_reset_time - current_time).total_seconds()
+                logger.info(f"Rate limit hit, waiting {wait_time:.1f} seconds")
+                time.sleep(wait_time + 3) 
+
         for attempt in range(self.max_retries):
             try:
                 # Convert OpenAI message format to Anthropic format
@@ -183,7 +195,7 @@ class ClaudeAdapter(LLMAdapterBase):
                 
                 # Make the API call
                 response = self.client.messages.create(**request_params)
-                
+                self.rate_limit_reset_time = None
                 # Extract content properly when thinking is enabled
                 # Claude Sonnet 4 with thinking returns multiple content blocks
                 content_text = ""
@@ -224,15 +236,38 @@ class ClaudeAdapter(LLMAdapterBase):
                 
                 return result
                 
-            except Exception as e:
-                logger.error(f"Claude API request error (attempt {attempt+1}): {str(e)}")
-                logger.error(traceback.format_exc())
+            except anthropic.RateLimitError as e:
+                # Extract rate limit info from error
+                error_dict = e.response.json() if hasattr(e.response, 'json') else {}
                 
-                if attempt < self.max_retries - 1:
-                    logger.info(f"Retrying after error (waiting {self.retry_delay} seconds)")
-                    time.sleep(self.retry_delay)
+                # Get retry-after header if available
+                if hasattr(e.response, 'headers'):
+                    retry_after = e.response.headers.get('retry-after')
+                    reset_time = e.response.headers.get('anthropic-ratelimit-output-tokens-reset')
+                    
+                    if retry_after:
+                        wait_time = int(retry_after) + 5  # Add buffer
+                        logger.info(f"Rate limit hit, waiting {wait_time} seconds")
+                        time.sleep(wait_time)
+                    elif reset_time:
+                        # Parse ISO format reset time
+                        self.rate_limit_reset_time = datetime.fromisoformat(reset_time.replace('Z', '+00:00'))
+                        wait_time = (self.rate_limit_reset_time - datetime.now(timezone.utc)).total_seconds() + 5
+                        logger.info(f"Rate limit hit, waiting until {reset_time} ({wait_time:.1f} seconds)")
+                        time.sleep(max(wait_time, 0))
+                    else:
+                        # Default wait time
+                        wait_time = 70
+                        logger.info(f"Rate limit hit, waiting {wait_time} seconds (default)")
+                        time.sleep(wait_time)
                 else:
-                    logger.error("All Claude API attempts failed")
+                    # If no headers, wait a default time
+                    time.sleep(70)
+                
+                # Retry if we have attempts left
+                if attempt < self.max_retries - 1:
+                    continue
+                else:
                     raise
         
         # This should not be reached due to the raise in the loop, but just in case

@@ -30,6 +30,18 @@ def configure_app(app):
     
     return app
 
+def get_mistral_api_key():
+    """Get the Mistral AI API key from environment variables or .env file"""
+    api_key = os.environ.get('MISTRAL_API_KEY')
+    
+    if api_key:
+        # Mask key for logging
+        masked_key = f"{api_key[:5]}...{api_key[-4:]}" if len(api_key) > 9 else "***"
+        logger.info(f"Mistral AI API key configured: {masked_key}")
+    else:
+        logger.warning("Mistral AI API key not found in environment variables or .env file")
+    
+    return api_key or "dummy_key_replace_me"
 
 def get_deepseek_api_key():
     """Get the DeepSeek API key from environment variables or .env file"""
@@ -102,7 +114,7 @@ def get_available_models():
     if not available_models:
         logger.warning("No LLM models are available with valid API keys")
         # Return at least one model as a fallback, even if the key is dummy
-        return {"deepseek": models["deepseek"]}
+        return {"openai": models["openai"]}
     
     return available_models
 

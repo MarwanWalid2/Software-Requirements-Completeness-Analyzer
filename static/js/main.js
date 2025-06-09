@@ -150,7 +150,7 @@ async handleUpdateModel() {
     // Get selected models
     const selectedModels = this.modelSelector.getSelectedModels();
     if (selectedModels.length === 0) {
-        selectedModels.push('deepseek'); // Fallback
+        selectedModels.push('openai'); // Fallback
     }
     
     // Get selected meta-model and weights

@@ -1,0 +1,1697 @@
+{
+  "domain_model": {
+    "classes": [
+      {
+        "name": "WetWell",
+        "attributes": [
+          {
+            "name": "environmentalConditions",
+            "type": "string",
+            "description": "Environmental conditions within the wet well"
+          }
+        ],
+        "methods": [],
+        "description": "Container for liquid that can run over or dry"
+      },
+      {
+        "name": "Liquid",
+        "attributes": [
+          {
+            "name": "level",
+            "type": "number",
+            "description": "Level of liquid"
+          },
+          {
+            "name": "depth",
+            "type": "number",
+            "description": "Depth of liquid"
+          }
+        ],
+        "methods": [],
+        "description": "Liquid contained within the wet well"
+      },
+      {
+        "name": "Pump",
+        "attributes": [
+          {
+            "name": "state",
+            "type": "string",
+            "description": "State of the pump"
+          },
+          {
+            "name": "running",
+            "type": "boolean",
+            "description": "Whether the pump is currently running"
+          },
+          {
+            "name": "availableToRun",
+            "type": "boolean",
+            "description": "Whether the pump is available to run"
+          },
+          {
+            "name": "runTime",
+            "type": "number",
+            "description": "Runtime of the pump"
+          },
+          {
+            "name": "physicalCondition",
+            "type": "string",
+            "description": "Physical condition of the pump"
+          },
+          {
+            "name": "moisture",
+            "type": "boolean",
+            "description": "Existence of moisture in pump"
+          },
+          {
+            "name": "temperatures",
+            "type": "number",
+            "description": "Temperature of the pump"
+          },
+          {
+            "name": "excessMoisture",
+            "type": "boolean",
+            "description": "Whether excess moisture is detected"
+          },
+          {
+            "name": "sealFailureState",
+            "type": "boolean",
+            "description": "Seal failure state"
+          },
+          {
+            "name": "highTemperatureFailureState",
+            "type": "boolean",
+            "description": "High temperature failure state"
+          },
+          {
+            "name": "leadPumpDepth",
+            "type": "number",
+            "description": "Depth threshold for lead pump activation"
+          },
+          {
+            "name": "lagPumpDepth",
+            "type": "number",
+            "description": "Depth threshold for lag pump activation"
+          }
+        ],
+        "methods": [],
+        "description": "Submersible pump motor that moves liquid"
+      },
+      {
+        "name": "Alarm",
+        "attributes": [
+          {
+            "name": "visual",
+            "type": "boolean",
+            "description": "Visual alarm component"
+          },
+          {
+            "name": "audible",
+            "type": "boolean",
+            "description": "Audible alarm component"
+          },
+          {
+            "name": "alarmState",
+            "type": "boolean",
+            "description": "Whether alarm is in active state"
+          }
+        ],
+        "methods": [
+          {
+            "name": "activate",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Activate the alarm when hazardous condition exists"
+          }
+        ],
+        "description": "Visual and audible alarm system"
+      },
+      {
+        "name": "MoistureSensor",
+        "attributes": [],
+        "methods": [
+          {
+            "name": "detectSealFailure",
+            "parameters": [],
+            "returnType": "boolean",
+            "description": "Detect occurrence of external pump seal failure"
+          }
+        ],
+        "description": "Sensor that detects moisture and seal failures"
+      },
+      {
+        "name": "PumpControlUnit",
+        "attributes": [
+          {
+            "name": "operationalParameters",
+            "type": "object",
+            "description": "Real time and historical operational parameters"
+          }
+        ],
+        "methods": [
+          {
+            "name": "startPump",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Start submersible pump motors"
+          },
+          {
+            "name": "stopPump",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Stop submersible pump motors"
+          },
+          {
+            "name": "keepTrackOfRunning",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Keep track of whether each motor is running"
+          },
+          {
+            "name": "keepTrackOfAvailability",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Keep track of whether each motor is available to run"
+          },
+          {
+            "name": "shutDownPump",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Shut down overheated motor"
+          },
+          {
+            "name": "monitorSite",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Monitor the pumping site"
+          },
+          {
+            "name": "recordParameters",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Record real time and historical operational parameters"
+          },
+          {
+            "name": "provideAlarm",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Provide alarm feature"
+          },
+          {
+            "name": "displayParameters",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Display real time and historical operational parameters"
+          }
+        ],
+        "description": "Central control unit responsible for pump operations and monitoring"
+      },
+      {
+        "name": "LevelSwitch",
+        "attributes": [],
+        "methods": [
+          {
+            "name": "indicate",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Indicate when pump motors should be started"
+          }
+        ],
+        "description": "Switch that indicates when pumps should start based on level"
+      },
+      {
+        "name": "ControlDisplayPanel",
+        "attributes": [
+          {
+            "name": "digitalDepth",
+            "type": "number",
+            "description": "Digital depth display"
+          },
+          {
+            "name": "influent",
+            "type": "number",
+            "description": "Influent measurement in feet"
+          }
+        ],
+        "methods": [],
+        "description": "Panel that displays depth and influent information"
+      },
+      {
+        "name": "IndicatorLight",
+        "attributes": [],
+        "methods": [
+          {
+            "name": "enable",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Enable indicator light when alarm state is activated"
+          }
+        ],
+        "description": "Light that indicates various system states"
+      },
+      {
+        "name": "Buzzer",
+        "attributes": [],
+        "methods": [
+          {
+            "name": "sound",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Sound when alarm state is activated"
+          }
+        ],
+        "description": "Audible alert device"
+      },
+      {
+        "name": "FloatSwitch",
+        "attributes": [
+          {
+            "name": "state",
+            "type": "string",
+            "description": "State set by float switch based on liquid depth"
+          }
+        ],
+        "methods": [
+          {
+            "name": "setState",
+            "parameters": [],
+            "returnType": "void",
+            "description": "Set state based on liquid depth thresholds"
+          }
+        ],
+        "description": "Switch that sets states based on liquid depth levels"
+      },
+      {
+        "name": "ElectricalCircuit",
+        "attributes": [
+          {
+            "name": "broken",
+            "type": "boolean",
+            "description": "Whether the electrical circuit is broken"
+          }
+        ],
+        "methods": [],
+        "description": "Electrical circuit used for monitoring entry"
+      },
+      {
+        "name": "PumpingSite",
+        "attributes": [],
+        "methods": [],
+        "description": "Physical site that is monitored for unauthorized entry"
+      }
+    ],
+    "relationships": [
+      {
+        "source": "WetWell",
+        "target": "Liquid",
+        "type": "composition",
+        "sourceMultiplicity": "1",
+        "targetMultiplicity": "1",
+        "description": "Wet well contains liquid"
+      },
+      {
+        "source": "Pump",
+        "target": "MoistureSensor",
+        "type": "composition",
+        "sourceMultiplicity": "1",
+        "targetMultiplicity": "1",
+        "description": "Each pump is equipped with a moisture sensor"
+      },
+      {
+        "source": "PumpControlUnit",
+        "target": "Pump",
+        "type": "association",
+        "sourceMultiplicity": "1",
+        "targetMultiplicity": "1..*",
+        "description": "Pump control unit starts and stops pumps"
+      },
+      {
+        "source": "PumpControlUnit",
+        "target": "Alarm",
+        "type": "association",
+        "sourceMultiplicity": "1",
+        "targetMultiplicity": "1",
+        "description": "Pump control unit provides alarm feature"
+      },
+      {
+        "source": "LevelSwitch",
+        "target": "Pump",
+        "type": "association",
+        "sourceMultiplicity": "0..*",
+        "targetMultiplicity": "1..*",
+        "description": "Level switches indicate when pump motors should start"
+      },
+      {
+        "source": "FloatSwitch",
+        "target": "Pump",
+        "type": "association",
+        "sourceMultiplicity": "1",
+        "targetMultiplicity": "1..*",
+        "description": "Float switch sets states that cause pumps to turn on"
+      },
+      {
+        "source": "IndicatorLight",
+        "target": "Pump",
+        "type": "association",
+        "sourceMultiplicity": "1..*",
+        "targetMultiplicity": "1..*",
+        "description": "Indicator lights display pump states"
+      },
+      {
+        "source": "IndicatorLight",
+        "target": "WetWell",
+        "type": "association",
+        "sourceMultiplicity": "1..*",
+        "targetMultiplicity": "1",
+        "description": "Indicator lights display wet well alarm states"
+      },
+      {
+        "source": "Alarm",
+        "target": "IndicatorLight",
+        "type": "association",
+        "sourceMultiplicity": "1",
+        "targetMultiplicity": "1..*",
+        "description": "Alarm activates indicator lights"
+      },
+      {
+        "source": "Alarm",
+        "target": "Buzzer",
+        "type": "association",
+        "sourceMultiplicity": "1",
+        "targetMultiplicity": "1",
+        "description": "Alarm activates buzzer"
+      }
+    ],
+    "plantuml": "@startuml\nclass WetWell {\n  +environmentalConditions: string\n}\n\nclass Liquid {\n  +level: number\n  +depth: number\n}\n\nclass Pump {\n  +state: string\n  +running: boolean\n  +availableToRun: boolean\n  +runTime: number\n  +physicalCondition: string\n  +moisture: boolean\n  +temperatures: number\n  +excessMoisture: boolean\n  +sealFailureState: boolean\n  +highTemperatureFailureState: boolean\n  +leadPumpDepth: number\n  +lagPumpDepth: number\n}\n\nclass Alarm {\n  +visual: boolean\n  +audible: boolean\n  +alarmState: boolean\n  +activate()\n}\n\nclass MoistureSensor {\n  +detectSealFailure(): boolean\n}\n\nclass PumpControlUnit {\n  +operationalParameters: object\n  +startPump()\n  +stopPump()\n  +keepTrackOfRunning()\n  +keepTrackOfAvailability()\n  +shutDownPump()\n  +monitorSite()\n  +recordParameters()\n  +provideAlarm()\n  +displayParameters()\n}\n\nclass LevelSwitch {\n  +indicate()\n}\n\nclass ControlDisplayPanel {\n  +digitalDepth: number\n  +influent: number\n}\n\nclass IndicatorLight {\n  +enable()\n}\n\nclass Buzzer {\n  +sound()\n}\n\nclass FloatSwitch {\n  +state: string\n  +setState()\n}\n\nclass ElectricalCircuit {\n  +broken: boolean\n}\n\nclass PumpingSite {\n}\n\nWetWell *-- Liquid\nPump *-- MoistureSensor\nPumpControlUnit -- \"1..*\" Pump\nPumpControlUnit -- Alarm\nLevelSwitch \"*\" -- \"1..*\" Pump\nFloatSwitch -- \"1..*\" Pump\nIndicatorLight \"1..*\" -- \"1..*\" Pump\nIndicatorLight \"1..*\" -- WetWell\nAlarm -- \"1..*\" IndicatorLight\nAlarm -- Buzzer\n@enduml"
+  },
+  "analysis": {
+    "requirement_issues": [
+      {
+        "requirement_id": "REQ-001",
+        "requirement_text": "Monitoring and reporting the level of liquid in the wet well",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "SHOULD FIX",
+            "description": "The term 'level' is ambiguous - it could refer to depth, height, volume percentage, or other measurements",
+            "suggested_fix": "Specify whether 'level' refers to depth in feet, percentage of capacity, or absolute height measurement",
+            "affected_model_elements": [
+              "Liquid"
+            ]
+          },
+          {
+            "issue_type": "Missing Context",
+            "severity": "SHOULD FIX",
+            "description": "No specification of reporting mechanism, frequency, or format",
+            "suggested_fix": "Specify how the level should be reported (display, logs, alarms) and at what frequency",
+            "affected_model_elements": [
+              "PumpControlUnit",
+              "ControlDisplayPanel"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-003",
+        "requirement_text": "Activating a visual and audible alarm when a hazardous condition exists",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "The term 'hazardous condition' is extremely vague and could be interpreted many ways",
+            "suggested_fix": "Define specific hazardous conditions such as: high liquid level, pump seal failure, pump overheating, unauthorized entry, etc.",
+            "affected_model_elements": [
+              "Alarm",
+              "PumpControlUnit"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-004",
+        "requirement_text": "Switching each submersible pump on or off in a timely fashion depending on the level of liquid within the wet well",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "The phrase 'timely fashion' is vague and not testable",
+            "suggested_fix": "Specify maximum response time (e.g., 'within 5 seconds of level threshold being reached')",
+            "affected_model_elements": [
+              "PumpControlUnit",
+              "Pump"
+            ]
+          },
+          {
+            "issue_type": "Ambiguity",
+            "severity": "SHOULD FIX",
+            "description": "The term 'level' is ambiguous as noted in REQ-001",
+            "suggested_fix": "Use consistent terminology (depth, height, etc.) throughout requirements",
+            "affected_model_elements": [
+              "Liquid"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-006",
+        "requirement_text": "Automated operation",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "Extremely vague - what aspects of operation should be automated?",
+            "suggested_fix": "Specify which operations are automated: pump control, alarm management, monitoring, etc.",
+            "affected_model_elements": [
+              "PumpControlUnit"
+            ]
+          },
+          {
+            "issue_type": "Conflict",
+            "severity": "SHOULD FIX",
+            "description": "Duplicates REQ-017",
+            "suggested_fix": "Consolidate with REQ-017 or differentiate their scope",
+            "affected_model_elements": [
+              "PumpControlUnit"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-007",
+        "requirement_text": "Local manual override operation",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "Vague - what can be overridden and through what interface?",
+            "suggested_fix": "Specify what operations can be manually overridden (pump control, alarms) and the interface mechanism",
+            "affected_model_elements": [
+              "PumpControlUnit"
+            ]
+          },
+          {
+            "issue_type": "Conflict",
+            "severity": "SHOULD FIX",
+            "description": "Duplicates REQ-016",
+            "suggested_fix": "Consolidate with REQ-016 or differentiate their scope",
+            "affected_model_elements": [
+              "PumpControlUnit"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-008",
+        "requirement_text": "Local observational operation",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "Unclear what 'observational operation' means",
+            "suggested_fix": "Specify what can be observed (pump status, liquid levels, alarms) and through what interface",
+            "affected_model_elements": [
+              "ControlDisplayPanel",
+              "IndicatorLight"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-009",
+        "requirement_text": "Start the pump motors to prevent the wet well from running over and stop the pump motors before the wet well runs dry",
+        "issues": [
+          {
+            "issue_type": "Conflict",
+            "severity": "SHOULD FIX",
+            "description": "Duplicates REQ-019 exactly",
+            "suggested_fix": "Remove duplicate requirement",
+            "affected_model_elements": [
+              "PumpControlUnit",
+              "Pump"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-010",
+        "requirement_text": "Keep track of whether or not each motor is running",
+        "issues": [
+          {
+            "issue_type": "Conflict",
+            "severity": "SHOULD FIX",
+            "description": "Duplicates REQ-020 exactly",
+            "suggested_fix": "Remove duplicate requirement",
+            "affected_model_elements": [
+              "PumpControlUnit",
+              "Pump"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-012",
+        "requirement_text": "Monitor the environmental conditions within the wet well",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "SHOULD FIX",
+            "description": "Environmental conditions is vague - temperature, humidity, gas levels, pH, etc.?",
+            "suggested_fix": "Specify which environmental parameters should be monitored",
+            "affected_model_elements": [
+              "WetWell"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-013",
+        "requirement_text": "Monitor the physical condition of each pump for the existence of moisture and excessive temperatures",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "Excessive temperatures - what constitutes excessive?",
+            "suggested_fix": "Define temperature thresholds that constitute 'excessive'",
+            "affected_model_elements": [
+              "Pump"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-014",
+        "requirement_text": "Display real time and historical operational parameters",
+        "issues": [
+          {
+            "issue_type": "Conflict",
+            "severity": "SHOULD FIX",
+            "description": "Duplicates REQ-035 exactly",
+            "suggested_fix": "Remove duplicate requirement",
+            "affected_model_elements": [
+              "PumpControlUnit",
+              "ControlDisplayPanel"
+            ]
+          },
+          {
+            "issue_type": "Ambiguity",
+            "severity": "SHOULD FIX",
+            "description": "Operational parameters is vague",
+            "suggested_fix": "Specify which parameters (pump runtime, liquid levels, temperatures, etc.)",
+            "affected_model_elements": [
+              "PumpControlUnit"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-015",
+        "requirement_text": "Provide an alarm feature",
+        "issues": [
+          {
+            "issue_type": "Conflict",
+            "severity": "SHOULD FIX",
+            "description": "Duplicates REQ-030 exactly",
+            "suggested_fix": "Remove duplicate requirement",
+            "affected_model_elements": [
+              "Alarm",
+              "PumpControlUnit"
+            ]
+          },
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "Very vague - what alarm functionality is required?",
+            "suggested_fix": "Specify alarm triggers, types (visual/audible), and behavior",
+            "affected_model_elements": [
+              "Alarm"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-023",
+        "requirement_text": "An alarm state shall be set when the high water level is reached",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "High water level threshold is not defined",
+            "suggested_fix": "Define the specific depth or level that constitutes 'high water level'",
+            "affected_model_elements": [
+              "Alarm",
+              "Liquid"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-026",
+        "requirement_text": "The pump control unit shall be notified if excess moisture is detected in a pump motor",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "Excess moisture threshold is not defined",
+            "suggested_fix": "Define what level of moisture constitutes 'excess'",
+            "affected_model_elements": [
+              "Pump",
+              "MoistureSensor"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-027",
+        "requirement_text": "The pump control unit shall be notified if a pump motor overheats and shall shut down the overheated motor",
+        "issues": [
+          {
+            "issue_type": "Ambiguity",
+            "severity": "MUST FIX",
+            "description": "Overheating threshold is not defined",
+            "suggested_fix": "Define the temperature threshold that constitutes overheating",
+            "affected_model_elements": [
+              "Pump"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-031",
+        "requirement_text": "Monitor and detect prohibited entry to the wet well through the access door by way of broken electrical circuit. Both audible and visible alarms shall be activated",
+        "issues": [
+          {
+            "issue_type": "Conflict",
+            "severity": "SHOULD FIX",
+            "description": "Very similar to REQ-034 but REQ-034 is more general",
+            "suggested_fix": "Consolidate with REQ-034 or clarify the difference",
+            "affected_model_elements": [
+              "ElectricalCircuit",
+              "Alarm"
+            ]
+          }
+        ]
+      },
+      {
+        "requirement_id": "REQ-032",
+        "requirement_text": "Monitor and detect occurrence of a pump motor seal leak. If a leak has been detected, both an audible and visible alarm should be activated",
+        "issues": [
+          {
+            "issue_type": "Inconsistency",
+            "severity": "MUST FIX",
+            "description": "Uses 'should' while REQ-005 uses 'shall' for similar functionality",
+            "suggested_fix": "Use consistent modal verbs - change 'should' to 'shall' for mandatory requirements",
+            "affected_model_elements": [
+              "MoistureSensor",
+              "Alarm"
+            ]
+          }
+        ]
+      }
+    ],
+    "domain_model_issues": [
+      {
+        "element_type": "Attribute",
+        "element_name": "Liquid.level and Liquid.depth",
+        "issue_type": "Inconsistent",
+        "severity": "MUST FIX",
+        "description": "Both 'level' and 'depth' attributes exist but their relationship and difference is unclear",
+        "suggested_fix": "Clarify the difference between level and depth, or consolidate into a single attribute with clear definition",
+        "affected_requirements": [
+          "REQ-001",
+          "REQ-004",
+          "REQ-042",
+          "REQ-043",
+          "REQ-044"
+        ]
+      },
+      {
+        "element_type": "Attribute",
+        "element_name": "Pump.moisture and Pump.excessMoisture",
+        "issue_type": "Inconsistent",
+        "severity": "SHOULD FIX",
+        "description": "Two similar moisture-related attributes with unclear relationship",
+        "suggested_fix": "Clarify the difference or consolidate - perhaps 'moisture' is the raw sensor reading and 'excessMoisture' is the boolean alarm condition",
+        "affected_requirements": [
+          "REQ-005",
+          "REQ-013",
+          "REQ-026"
+        ]
+      },
+      {
+        "element_type": "Attribute",
+        "element_name": "Pump.temperatures",
+        "issue_type": "Incorrect",
+        "severity": "SHOULD FIX",
+        "description": "Attribute name is plural but type is number (should be singular)",
+        "suggested_fix": "Rename to 'temperature' to match the singular type",
+        "affected_requirements": [
+          "REQ-013",
+          "REQ-027"
+        ]
+      },
+      {
+        "element_type": "Attribute",
+        "element_name": "Pump.leadPumpDepth and Pump.lagPumpDepth",
+        "issue_type": "Misaligned",
+        "severity": "MUST FIX",
+        "description": "These appear to be system-level configuration values, not individual pump attributes",
+        "suggested_fix": "Move these to a system configuration class or PumpControlUnit, as they represent thresholds for the system, not individual pump properties",
+        "affected_requirements": [
+          "REQ-042",
+          "REQ-043"
+        ]
+      },
+      {
+        "element_type": "Class",
+        "element_name": "TemperatureSensor",
+        "issue_type": "Missing",
+        "severity": "SHOULD FIX",
+        "description": "Requirements mention temperature monitoring but no temperature sensor class exists",
+        "suggested_fix": "Add TemperatureSensor class similar to MoistureSensor",
+        "affected_requirements": [
+          "REQ-013",
+          "REQ-027"
+        ]
+      },
+      {
+        "element_type": "Class",
+        "element_name": "AccessDoor",
+        "issue_type": "Missing",
+        "severity": "SHOULD FIX",
+        "description": "REQ-031 specifically mentions access door monitoring but no such class exists",
+        "suggested_fix": "Add AccessDoor class with relationship to ElectricalCircuit",
+        "affected_requirements": [
+          "REQ-031"
+        ]
+      },
+      {
+        "element_type": "Relationship",
+        "element_name": "PumpControlUnit to Pump",
+        "issue_type": "Incorrect",
+        "severity": "SHOULD FIX",
+        "description": "Relationship is association but should probably be composition since PumpControlUnit manages pumps",
+        "suggested_fix": "Change to composition relationship as PumpControlUnit has direct control over pump lifecycle",
+        "affected_requirements": [
+          "REQ-019",
+          "REQ-020",
+          "REQ-021",
+          "REQ-022"
+        ]
+      },
+      {
+        "element_type": "Relationship",
+        "element_name": "FloatSwitch to Liquid/WetWell",
+        "issue_type": "Missing",
+        "severity": "MUST FIX",
+        "description": "FloatSwitch responds to liquid depth but has no relationship to Liquid or WetWell",
+        "suggested_fix": "Add association relationship between FloatSwitch and Liquid to show that float switch monitors liquid depth",
+        "affected_requirements": [
+          "REQ-042",
+          "REQ-043",
+          "REQ-044"
+        ]
+      },
+      {
+        "element_type": "Relationship",
+        "element_name": "ElectricalCircuit to PumpingSite",
+        "issue_type": "Missing",
+        "severity": "SHOULD FIX",
+        "description": "ElectricalCircuit is used for monitoring entry but has no relationship to PumpingSite",
+        "suggested_fix": "Add association between ElectricalCircuit and PumpingSite",
+        "affected_requirements": [
+          "REQ-031",
+          "REQ-034"
+        ]
+      },
+      {
+        "element_type": "Method",
+        "element_name": "PumpControlUnit.startPump and stopPump",
+        "issue_type": "Incomplete",
+        "severity": "MUST FIX",
+        "description": "Methods don't specify which pump to start/stop",
+        "suggested_fix": "Add pump identifier parameter to specify which pump to control",
+        "affected_requirements": [
+          "REQ-004",
+          "REQ-019",
+          "REQ-022"
+        ]
+      },
+      {
+        "element_type": "Attribute",
+        "element_name": "System-level thresholds",
+        "issue_type": "Missing",
+        "severity": "MUST FIX",
+        "description": "No attributes exist for critical thresholds like high water level, temperature limits, etc.",
+        "suggested_fix": "Add system configuration class or extend PumpControlUnit with threshold attributes",
+        "affected_requirements": [
+          "REQ-023",
+          "REQ-027",
+          "REQ-044"
+        ]
+      },
+      {
+        "element_type": "Class",
+        "element_name": "AlarmCondition or specific alarm types",
+        "issue_type": "Missing",
+        "severity": "SHOULD FIX",
+        "description": "Model has generic Alarm class but requirements specify different types of alarms (seal failure, high temp, high level, unauthorized entry)",
+        "suggested_fix": "Either extend Alarm class with type attribute or create specific alarm condition classes",
+        "affected_requirements": [
+          "REQ-023",
+          "REQ-031",
+          "REQ-032",
+          "REQ-037",
+          "REQ-038",
+          "REQ-039"
+        ]
+      }
+    ],
+    "missing_requirements": [
+      {
+        "id": "MR1",
+        "description": "System lacks specific definitions of environmental conditions to be monitored in the wet well",
+        "category": "Functional",
+        "severity": "HIGH",
+        "suggested_requirement": "The system shall monitor specific environmental conditions in the wet well including temperature (range: -10\u00b0C to 50\u00b0C), humidity levels, and hazardous gas concentrations (H2S, CH4). Alarms shall be triggered when any parameter exceeds safe operating thresholds.",
+        "affected_model_elements": [
+          "WetWell.environmentalConditions"
+        ],
+        "rationale": "The WetWell class has environmentalConditions attribute and REQ-012 mentions monitoring environmental conditions, but no specific conditions, thresholds, or actions are defined. This is critical for safety in industrial pumping systems."
+      },
+      {
+        "id": "MR2",
+        "description": "Missing pump alternation logic and lead/lag pump switching algorithm",
+        "category": "Functional",
+        "severity": "CRITICAL",
+        "suggested_requirement": "The system shall implement automatic pump alternation where the lead pump designation switches between available pumps on each pump cycle to ensure equal runtime distribution. When the lead pump fails or is unavailable, the lag pump shall automatically become the lead pump.",
+        "affected_model_elements": [
+          "Pump.leadPumpDepth",
+          "Pump.lagPumpDepth",
+          "PumpControlUnit.startPump"
+        ],
+        "rationale": "Domain model shows leadPumpDepth and lagPumpDepth attributes, and REQ-018, REQ-024 mention equalizing runtime, but no specific algorithm is defined for how pumps alternate or switch roles."
+      },
+      {
+        "id": "MR3",
+        "description": "No specific definition of what constitutes 'excessive temperatures' for pump failure",
+        "category": "Functional",
+        "severity": "HIGH",
+        "suggested_requirement": "The system shall define excessive pump temperature as any reading above 75\u00b0C for motor windings. When this threshold is exceeded, the highTemperatureFailureState shall be set to true, the pump shall be immediately shut down, and both visual and audible alarms shall be activated.",
+        "affected_model_elements": [
+          "Pump.temperatures",
+          "Pump.highTemperatureFailureState",
+          "PumpControlUnit.shutDownPump"
+        ],
+        "rationale": "The Pump class has temperatures and highTemperatureFailureState attributes, and REQ-027 mentions overheating, but no specific temperature threshold is defined for triggering the failure state."
+      },
+      {
+        "id": "MR4",
+        "description": "Missing specification of what operational parameters are recorded and displayed",
+        "category": "Functional",
+        "severity": "MEDIUM",
+        "suggested_requirement": "The operational parameters shall include: pump runtime hours, pump start/stop cycles, liquid level readings, flow rates, pump temperatures, moisture sensor status, alarm history, and system uptime. Parameters shall be recorded every 60 seconds and historical data retained for minimum 90 days.",
+        "affected_model_elements": [
+          "PumpControlUnit.operationalParameters",
+          "PumpControlUnit.recordParameters",
+          "PumpControlUnit.displayParameters"
+        ],
+        "rationale": "PumpControlUnit has operationalParameters attribute and multiple requirements (REQ-014, REQ-029, REQ-035) mention recording and displaying parameters, but no specification of what parameters are included or retention periods."
+      },
+      {
+        "id": "MR5",
+        "description": "No requirements for system startup, initialization, and self-test procedures",
+        "category": "Functional",
+        "severity": "HIGH",
+        "suggested_requirement": "Upon system startup, the PumpControlUnit shall perform a power-on self-test including: verification of all sensor connections, pump availability status check, alarm system functionality test, and display panel operation test. System shall not enter operational mode until all tests pass successfully.",
+        "affected_model_elements": [
+          "PumpControlUnit",
+          "Pump.availableToRun",
+          "Alarm.activate",
+          "ControlDisplayPanel"
+        ],
+        "rationale": "The domain model shows complex system with multiple interconnected components, but no requirements exist for ensuring system integrity at startup, which is critical for safe operation."
+      },
+      {
+        "id": "MR6",
+        "description": "Missing pump startup and shutdown sequence timing requirements",
+        "category": "Functional",
+        "severity": "MEDIUM",
+        "suggested_requirement": "Pump startup shall include a 5-second delay after receiving start command to allow float switch state stabilization. Pump shutdown shall include a 10-second run-on period after stop command to clear discharge piping. Multiple pumps shall not start simultaneously - minimum 30-second delay between pump starts.",
+        "affected_model_elements": [
+          "PumpControlUnit.startPump",
+          "PumpControlUnit.stopPump",
+          "FloatSwitch.setState"
+        ],
+        "rationale": "Industrial pump systems require specific timing sequences to prevent water hammer, electrical overload, and ensure proper operation, but no timing requirements are specified."
+      },
+      {
+        "id": "MR7",
+        "description": "No specification of indicator light colors, patterns, or visual characteristics",
+        "category": "Functional",
+        "severity": "MEDIUM",
+        "suggested_requirement": "Indicator lights shall use standard colors: Green for pump running state, Red flashing for pump seal failure state, Red solid for pump high temperature failure state, and Yellow flashing for high wet well level alarm state. All indicator lights shall be LED type with minimum 50,000 hour lifespan.",
+        "affected_model_elements": [
+          "IndicatorLight.enable",
+          "IndicatorLight"
+        ],
+        "rationale": "Requirements REQ-036 through REQ-040 mention indicator lights for various states, and domain model shows IndicatorLight class, but no specification of visual characteristics which is essential for operator understanding."
+      },
+      {
+        "id": "MR8",
+        "description": "Missing system performance and response time requirements",
+        "category": "Non-Functional",
+        "severity": "HIGH",
+        "suggested_requirement": "The system shall respond to liquid level changes within 2 seconds, activate alarms within 3 seconds of detecting hazardous conditions, and complete pump start/stop operations within 10 seconds. Display updates shall occur every 5 seconds maximum.",
+        "affected_model_elements": [
+          "PumpControlUnit.startPump",
+          "PumpControlUnit.stopPump",
+          "Alarm.activate",
+          "ControlDisplayPanel"
+        ],
+        "rationale": "Real-time pump control system requires specific performance criteria to prevent wet well overflow or running dry, but no timing requirements are specified."
+      },
+      {
+        "id": "MR9",
+        "description": "No error handling or sensor failure detection requirements",
+        "category": "Functional",
+        "severity": "CRITICAL",
+        "suggested_requirement": "The system shall detect sensor failures including: moisture sensor disconnection, float switch malfunction, and level switch failure. Upon sensor failure detection, the system shall activate alarms, switch to manual override mode, and log the failure event with timestamp.",
+        "affected_model_elements": [
+          "MoistureSensor.detectSealFailure",
+          "FloatSwitch.setState",
+          "LevelSwitch.indicate"
+        ],
+        "rationale": "The domain model shows critical sensors for system operation, but no requirements exist for handling sensor failures, which could lead to system malfunction or safety hazards."
+      },
+      {
+        "id": "MR10",
+        "description": "Missing system capacity and scalability limits",
+        "category": "Non-Functional",
+        "severity": "MEDIUM",
+        "suggested_requirement": "The system shall support a maximum of 4 submersible pumps, 8 level switches, and 16 indicator lights. The system shall be capable of monitoring wet wells with depths up to 30 feet and liquid flow rates up to 1000 GPM per pump.",
+        "affected_model_elements": [
+          "PumpControlUnit",
+          "Pump",
+          "LevelSwitch",
+          "IndicatorLight"
+        ],
+        "rationale": "Domain model shows 1..* relationship between PumpControlUnit and Pump, but no upper limits are specified, which is necessary for system design and capacity planning."
+      },
+      {
+        "id": "MR11",
+        "description": "No requirements for electrical circuit reset after unauthorized entry detection",
+        "category": "Functional",
+        "severity": "MEDIUM",
+        "suggested_requirement": "After detection of unauthorized entry via broken electrical circuit, the system shall require manual reset of the circuit breaker and acknowledgment of the alarm condition before resuming normal monitoring. The reset action shall be logged with timestamp and operator identification.",
+        "affected_model_elements": [
+          "ElectricalCircuit.broken",
+          "PumpingSite"
+        ],
+        "rationale": "Requirements REQ-031 and REQ-034 mention monitoring for prohibited entry and domain model includes ElectricalCircuit.broken attribute, but no reset mechanism is defined."
+      },
+      {
+        "id": "MR12",
+        "description": "Missing data backup, export, and archival capabilities",
+        "category": "Functional",
+        "severity": "MEDIUM",
+        "suggested_requirement": "The system shall provide automated daily backup of all operational parameters and historical data to external storage. Manual data export functionality shall be available in CSV format. Archived data older than 90 days shall be automatically compressed and stored for regulatory compliance.",
+        "affected_model_elements": [
+          "PumpControlUnit.operationalParameters",
+          "PumpControlUnit.recordParameters"
+        ],
+        "rationale": "System records operational parameters per REQ-029, but no requirements exist for data protection, export, or long-term archival which are essential for industrial systems."
+      }
+    ],
+    "requirement_completeness": [
+      {
+        "requirement_id": "REQ-001",
+        "requirement_text": "Monitoring and reporting the level of liquid in the wet well",
+        "completeness_score": 40,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall monitor and report the level of liquid in the wet well with accuracy of \u00b10.1 feet and update frequency of every 5 seconds",
+        "rationale": "Missing clear actor (who performs monitoring), acceptance criteria for accuracy and timing, and measurable performance requirements"
+      },
+      {
+        "requirement_id": "REQ-002",
+        "requirement_text": "Monitoring and reporting the state of each pump and whether it is currently running or not",
+        "completeness_score": 40,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall monitor and report the state of each pump and its running status with status updates within 2 seconds of any state change",
+        "rationale": "Missing clear actor, acceptance criteria for response time, and specific performance requirements"
+      },
+      {
+        "requirement_id": "REQ-003",
+        "requirement_text": "Activating a visual and audible alarm when a hazardous condition exists",
+        "completeness_score": 50,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The alarm system shall activate both visual and audible alarms within 3 seconds when any hazardous condition (high water level, pump failure, unauthorized entry) is detected",
+        "rationale": "Missing clear actor, specific hazardous conditions, timing requirements, and acceptance criteria"
+      },
+      {
+        "requirement_id": "REQ-004",
+        "requirement_text": "Switching each submersible pump on or off in a timely fashion depending on the level of liquid within the wet well",
+        "completeness_score": 55,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall switch each submersible pump on or off within 5 seconds based on predefined liquid level thresholds in the wet well",
+        "rationale": "Missing clear actor, specific timing definition for 'timely fashion', and specific level thresholds"
+      },
+      {
+        "requirement_id": "REQ-005",
+        "requirement_text": "Each submersible pump shall be equipped with a moisture sensor that detects the occurrence of an external pump seal failure. Should a seal failure be detected, the pump shall be turned off and alarm state set",
+        "completeness_score": 75,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "Each submersible pump shall be equipped with a moisture sensor that detects external pump seal failure within 10 seconds. When seal failure is detected, the pump shall be turned off within 5 seconds and alarm state shall be set within 3 seconds",
+        "rationale": "Missing specific timing requirements and acceptance criteria for detection and response times"
+      },
+      {
+        "requirement_id": "REQ-006",
+        "requirement_text": "Automated operation",
+        "completeness_score": 15,
+        "missing_elements": [
+          "actor",
+          "action",
+          "object",
+          "condition",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control system shall provide automated operation mode that controls pump switching based on liquid levels without manual intervention",
+        "rationale": "Extremely vague - missing all essential elements including what performs automated operation and what specifically is automated"
+      },
+      {
+        "requirement_id": "REQ-007",
+        "requirement_text": "Local manual override operation",
+        "completeness_score": 15,
+        "missing_elements": [
+          "actor",
+          "action",
+          "object",
+          "condition",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control system shall provide local manual override capability that allows authorized operators to manually control pump operations, overriding automated functions",
+        "rationale": "Extremely vague - missing what provides override, how it works, and who can use it"
+      },
+      {
+        "requirement_id": "REQ-008",
+        "requirement_text": "Local observational operation",
+        "completeness_score": 15,
+        "missing_elements": [
+          "actor",
+          "action",
+          "object",
+          "condition",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The control display panel shall provide local observational operation mode that displays real-time system status and parameters for on-site monitoring without control capabilities",
+        "rationale": "Extremely vague - missing what provides observational operation and what can be observed"
+      },
+      {
+        "requirement_id": "REQ-009",
+        "requirement_text": "Start the pump motors to prevent the wet well from running over and stop the pump motors before the wet well runs dry",
+        "completeness_score": 50,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall start pump motors when liquid level reaches high threshold to prevent overflow and stop pump motors when liquid level reaches low threshold to prevent dry running",
+        "rationale": "Missing clear actor and specific level thresholds for starting and stopping"
+      },
+      {
+        "requirement_id": "REQ-010",
+        "requirement_text": "Keep track of whether or not each motor is running",
+        "completeness_score": 40,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall continuously monitor and maintain the running status of each motor with status updates within 2 seconds of any change",
+        "rationale": "Missing clear actor and acceptance criteria for tracking accuracy and update frequency"
+      },
+      {
+        "requirement_id": "REQ-011",
+        "requirement_text": "Monitor the pumping site for unauthorized entry or trespass",
+        "completeness_score": 45,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall monitor the pumping site for unauthorized entry through electrical circuit monitoring and activate alarms within 3 seconds of detection",
+        "rationale": "Missing clear actor, detection method, and response time requirements"
+      },
+      {
+        "requirement_id": "REQ-012",
+        "requirement_text": "Monitor the environmental conditions within the wet well",
+        "completeness_score": 40,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall continuously monitor environmental conditions within the wet well and record measurements every 60 seconds",
+        "rationale": "Missing clear actor, specific environmental parameters, and monitoring frequency"
+      },
+      {
+        "requirement_id": "REQ-013",
+        "requirement_text": "Monitor the physical condition of each pump for the existence of moisture and excessive temperatures",
+        "completeness_score": 50,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall monitor each pump's physical condition for moisture detection and temperature monitoring, with readings taken every 10 seconds and alarms triggered when temperature exceeds 80\u00b0C",
+        "rationale": "Missing clear actor, specific temperature thresholds, and monitoring frequency"
+      },
+      {
+        "requirement_id": "REQ-014",
+        "requirement_text": "Display real time and historical operational parameters",
+        "completeness_score": 40,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The control display panel shall display real-time operational parameters with updates every 5 seconds and provide access to historical data for the past 30 days",
+        "rationale": "Missing clear actor, update frequency, and historical data retention requirements"
+      },
+      {
+        "requirement_id": "REQ-015",
+        "requirement_text": "Provide an alarm feature",
+        "completeness_score": 35,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall provide visual and audible alarm capabilities that activate within 3 seconds of detecting any system fault or hazardous condition",
+        "rationale": "Missing clear actor, specific alarm types, and activation time requirements"
+      },
+      {
+        "requirement_id": "REQ-016",
+        "requirement_text": "Provide a manual override of the site",
+        "completeness_score": 35,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall provide manual override capability that allows authorized operators to control pump operations locally, with override status clearly indicated",
+        "rationale": "Missing clear actor, authorization requirements, and status indication"
+      },
+      {
+        "requirement_id": "REQ-017",
+        "requirement_text": "Provide automated operation of the site",
+        "completeness_score": 35,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall provide automated operation mode that controls all pump operations based on liquid level thresholds without manual intervention",
+        "rationale": "Missing clear actor and specific automated functions"
+      },
+      {
+        "requirement_id": "REQ-018",
+        "requirement_text": "Equalize the run time between the pumps",
+        "completeness_score": 40,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall equalize run time between pumps by alternating lead pump selection, maintaining run time difference within 10% between any two pumps",
+        "rationale": "Missing clear actor and specific equalization criteria/tolerance"
+      },
+      {
+        "requirement_id": "REQ-019",
+        "requirement_text": "The pump control unit shall start the submersible pump motors to prevent the wet well from running over and stop the pump motors before the wet well runs dry",
+        "completeness_score": 65,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall start submersible pump motors when liquid level reaches high threshold (X feet) to prevent overflow and stop motors when level reaches low threshold (Y feet) to prevent dry running, with response time within 5 seconds",
+        "rationale": "Missing specific level thresholds and response time requirements"
+      },
+      {
+        "requirement_id": "REQ-020",
+        "requirement_text": "The pump control unit shall keep track of whether or not each motor is running",
+        "completeness_score": 60,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall continuously monitor and maintain accurate running status of each motor with status updates within 2 seconds of any state change",
+        "rationale": "Missing specific accuracy and timing requirements for status tracking"
+      },
+      {
+        "requirement_id": "REQ-021",
+        "requirement_text": "The pump control unit shall keep track of whether or not each motor is available to run",
+        "completeness_score": 60,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall continuously monitor and maintain availability status of each motor based on fault conditions, with status updates within 2 seconds of any change",
+        "rationale": "Missing specific criteria for availability determination and update timing"
+      },
+      {
+        "requirement_id": "REQ-022",
+        "requirement_text": "If a pump motor is not available to run and a request has been made for the pump motor to start, an alternative motor shall be started in its place",
+        "completeness_score": 70,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "If a pump motor is not available to run and a request has been made for that motor to start, an available alternative motor shall be started within 10 seconds, with priority given to the motor with least run time",
+        "rationale": "Missing specific timing requirements and selection criteria for alternative motor"
+      },
+      {
+        "requirement_id": "REQ-023",
+        "requirement_text": "An alarm state shall be set when the high water level is reached",
+        "completeness_score": 60,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "An alarm state shall be set within 3 seconds when the liquid level reaches the high water level threshold (X feet)",
+        "rationale": "Missing specific level threshold and response time requirements"
+      },
+      {
+        "requirement_id": "REQ-024",
+        "requirement_text": "The starting and stopping of the pump motors shall be done in manner that equalizes the run times on the motors",
+        "completeness_score": 65,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The starting and stopping of pump motors shall be sequenced to equalize run times, maintaining run time difference within 10% between any two motors over a 24-hour period",
+        "rationale": "Missing specific equalization criteria and measurement period"
+      },
+      {
+        "requirement_id": "REQ-025",
+        "requirement_text": "Level switches shall be used to indicate when pump motors should be started",
+        "completeness_score": 60,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "Level switches shall be used to indicate when pump motors should be started, with switch activation at predefined liquid level thresholds and signal transmission within 2 seconds",
+        "rationale": "Missing specific level thresholds and response time requirements"
+      },
+      {
+        "requirement_id": "REQ-026",
+        "requirement_text": "The pump control unit shall be notified if excess moisture is detected in a pump motor",
+        "completeness_score": 65,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall be notified within 5 seconds if excess moisture is detected in any pump motor, with notification including motor identification and moisture level",
+        "rationale": "Missing specific notification timing and information content requirements"
+      },
+      {
+        "requirement_id": "REQ-027",
+        "requirement_text": "The pump control unit shall be notified if a pump motor overheats and shall shut down the overheated motor",
+        "completeness_score": 70,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall be notified within 3 seconds if a pump motor exceeds 80\u00b0C and shall shut down the overheated motor within 5 seconds of notification",
+        "rationale": "Missing specific temperature threshold and timing requirements for notification and shutdown"
+      },
+      {
+        "requirement_id": "REQ-028",
+        "requirement_text": "The pump control unit shall be responsible for monitoring the pumping site",
+        "completeness_score": 55,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall continuously monitor the pumping site for unauthorized entry through electrical circuit monitoring, with status checks every 10 seconds",
+        "rationale": "Missing specific monitoring methods and frequency requirements"
+      },
+      {
+        "requirement_id": "REQ-029",
+        "requirement_text": "The pump control unit shall be responsible for recording real time and historical operational parameters",
+        "completeness_score": 60,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall record real-time operational parameters every 60 seconds and maintain historical data for at least 30 days with 99.9% data integrity",
+        "rationale": "Missing specific recording frequency, retention period, and data integrity requirements"
+      },
+      {
+        "requirement_id": "REQ-030",
+        "requirement_text": "The pump control unit shall be responsible for providing the alarm feature",
+        "completeness_score": 55,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall provide visual and audible alarm capabilities with activation within 3 seconds of fault detection and manual acknowledgment capability",
+        "rationale": "Missing specific alarm types, timing, and management features"
+      },
+      {
+        "requirement_id": "REQ-031",
+        "requirement_text": "Monitor and detect prohibited entry to the wet well through the access door by way of broken electrical circuit. Both audible and visible alarms shall be activated",
+        "completeness_score": 65,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall monitor and detect prohibited entry to the wet well through access door electrical circuit monitoring. When circuit breakage is detected, both audible and visible alarms shall be activated within 3 seconds",
+        "rationale": "Missing clear actor and specific timing requirements for alarm activation"
+      },
+      {
+        "requirement_id": "REQ-032",
+        "requirement_text": "Monitor and detect occurrence of a pump motor seal leak. If a leak has been detected, both an audible and visible alarm should be activated",
+        "completeness_score": 60,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall monitor and detect pump motor seal leaks through moisture sensors. When a leak is detected, both audible and visible alarms shall be activated within 3 seconds",
+        "rationale": "Missing clear actor, detection method, and specific timing requirements. 'Should' is weaker than 'shall'"
+      },
+      {
+        "requirement_id": "REQ-033",
+        "requirement_text": "The control display panel shall have a digital depth of influent measured in feet",
+        "completeness_score": 65,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The control display panel shall display digital depth of influent in feet with accuracy of \u00b10.1 feet and update frequency of every 5 seconds",
+        "rationale": "Missing specific accuracy and update frequency requirements"
+      },
+      {
+        "requirement_id": "REQ-034",
+        "requirement_text": "Monitor and detect prohibited entry by way of a broken electrical circuit. Both audible and visible alarms shall be activated",
+        "completeness_score": 60,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall monitor and detect prohibited entry through electrical circuit monitoring. When circuit breakage is detected, both audible and visible alarms shall be activated within 3 seconds",
+        "rationale": "Missing clear actor and specific timing requirements. Appears to duplicate REQ-031"
+      },
+      {
+        "requirement_id": "REQ-035",
+        "requirement_text": "The pump control unit shall be responsible for displaying real time and historical operational parameters",
+        "completeness_score": 60,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The pump control unit shall display real-time operational parameters through the control display panel with updates every 5 seconds and provide access to historical data for the past 30 days",
+        "rationale": "Missing specific update frequency and historical data retention requirements"
+      },
+      {
+        "requirement_id": "REQ-036",
+        "requirement_text": "Indicator lights shall be provided for pump running state",
+        "completeness_score": 55,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The system shall provide indicator lights that display pump running state, with light activation within 2 seconds of pump state changes and clear visual distinction between running and stopped states",
+        "rationale": "Missing clear actor and specific timing and visual requirements"
+      },
+      {
+        "requirement_id": "REQ-037",
+        "requirement_text": "Indicator lights shall be provided for pump seal failure state",
+        "completeness_score": 55,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The system shall provide indicator lights that display pump seal failure state, with light activation within 3 seconds of seal failure detection and distinctive color coding",
+        "rationale": "Missing clear actor, timing requirements, and visual specification"
+      },
+      {
+        "requirement_id": "REQ-038",
+        "requirement_text": "Indicator lights shall be provided for pump high temperature failure state",
+        "completeness_score": 55,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The system shall provide indicator lights that display pump high temperature failure state, with light activation within 3 seconds of temperature threshold breach (>80\u00b0C) and distinctive color coding",
+        "rationale": "Missing clear actor, specific temperature threshold, timing, and visual requirements"
+      },
+      {
+        "requirement_id": "REQ-039",
+        "requirement_text": "Indicator lights shall be provided for high wet well level alarm state",
+        "completeness_score": 55,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The system shall provide indicator lights that display high wet well level alarm state, with light activation within 3 seconds of high level detection and distinctive color coding",
+        "rationale": "Missing clear actor, specific level threshold, timing, and visual requirements"
+      },
+      {
+        "requirement_id": "REQ-040",
+        "requirement_text": "Indicator lights shall be enabled when an alarm state is activated",
+        "completeness_score": 60,
+        "missing_elements": [
+          "actor",
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The indicator lights shall be enabled within 2 seconds when any alarm state is activated, with appropriate color coding to distinguish alarm types",
+        "rationale": "Missing specific timing and visual distinction requirements"
+      },
+      {
+        "requirement_id": "REQ-041",
+        "requirement_text": "A buzzer shall sound when an alarm state is activated",
+        "completeness_score": 60,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "The buzzer shall sound within 2 seconds when any alarm state is activated, with minimum 85dB sound level and manual silence capability",
+        "rationale": "Missing specific timing, sound level, and control requirements"
+      },
+      {
+        "requirement_id": "REQ-042",
+        "requirement_text": "When the depth of liquid is equal to or greater than the lead pump depth, the float switch shall set a state which causes the first pump to turn on",
+        "completeness_score": 75,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "When the liquid depth equals or exceeds the lead pump depth threshold (X feet), the float switch shall set a state within 3 seconds that causes the first pump to turn on within 5 seconds",
+        "rationale": "Missing specific depth threshold value and timing requirements for state setting and pump activation"
+      },
+      {
+        "requirement_id": "REQ-043",
+        "requirement_text": "When the depth of liquid is equal to or greater than the lag pump depth, the float switch shall set a state which causes the second pump to turn on",
+        "completeness_score": 75,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "When the liquid depth equals or exceeds the lag pump depth threshold (Y feet), the float switch shall set a state within 3 seconds that causes the second pump to turn on within 5 seconds",
+        "rationale": "Missing specific depth threshold value and timing requirements for state setting and pump activation"
+      },
+      {
+        "requirement_id": "REQ-044",
+        "requirement_text": "When the depth of liquid is equal to or greater than the allowable high liquid depth, the float switch shall set an alarm state",
+        "completeness_score": 70,
+        "missing_elements": [
+          "acceptance criteria",
+          "priority",
+          "rationale",
+          "source",
+          "status"
+        ],
+        "suggested_improvement": "When the liquid depth equals or exceeds the allowable high liquid depth threshold (Z feet), the float switch shall set an alarm state within 3 seconds",
+        "rationale": "Missing specific depth threshold value and timing requirements for alarm state activation"
+      }
+    ]
+  },
+  "uml_image": "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",
+  "reasoning": {
+    "domain_model": "Domain model generated by claude",
+    "analysis": "Analysis generated by claude"
+  },
+  "aggregation_info": {
+    "domain_model": {},
+    "analysis": {}
+  },
+  "debug_info": {
+    "selected_models": [
+      "claude"
+    ],
+    "meta_model_id": "majority",
+    "requirements_length": 4216,
+    "domain_model_present": true,
+    "uml_image_present": true,
+    "analysis_present": true
+  }
+}
